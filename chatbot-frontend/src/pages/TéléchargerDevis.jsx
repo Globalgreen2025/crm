@@ -1,46 +1,63 @@
 import React, { useState, useEffect } from "react";
 import {
   Table,
-  Tag,
   Space,
   Button,
   message,
   Modal,
   Card,
   Statistic,
+  Tag,
+  Form,
+  Input,
+  Select,
+  DatePicker,
+  Radio
 } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
   FilePdfOutlined,
-  SendOutlined
+  SendOutlined,
+  CloseOutlined
 } from "@ant-design/icons";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import moment from "moment";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import logo from "../assets/logo.jpeg";
 
 const { confirm } = Modal;
 
 const AllDevis = () => {
+    const [devisModalVisible, setDevisModalVisible] = useState(false);
+  const [produits, setProduits] = useState([]);
+  const TVA = 10;
+  const [form] = Form.useForm();
+  const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [chatData, setChatData] = useState([]);
+
   const [allCommands, setAllCommands] = useState([]);
+  const [error, setError] = useState(null);
+  const [filteredCommands, setFilteredCommands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
    totalHT: 0,
     totalTTC: 0,
     totalCommands: 0,
   });
+  const [activeFilter, setActiveFilter] = useState('all'); 
   const token = localStorage.getItem("token");
   const decodedUser = token ? jwtDecode(token) : null;
   // const userLoged = decodedUser?.userId;
   const userRole = decodedUser?.role;
 
+
   useEffect(() => {
-    fetchCommands();
-  }, []);
+    applyFilter(activeFilter);
+  }, [allCommands, activeFilter]);
+
 
   const fetchCommands = async () => {
     const token = localStorage.getItem("token");
@@ -50,13 +67,13 @@ const AllDevis = () => {
       const response = await axios.get("/command", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("API Response:", response);
+      console.log("API Responssssssssse:", response);
       const commandsData = response?.data;
       const decodedToken = token ? jwtDecode(token) : null;
       const currentUserId = decodedToken?.userId;
       const role = decodedToken.role
       if (role === "Admin") {
-        setAllCommands(commandsData); // Set only the "devis" commands
+        setAllCommands(commandsData);
         updateStatistics(commandsData);
       } else {
     
@@ -83,6 +100,164 @@ const AllDevis = () => {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    fetchCommands();
+  }, []);
+  
+
+    useEffect(() => {
+      const fetchProduits = async () => {
+        const token = localStorage.getItem("token");
+        try {
+          const response = await axios.get("/produit", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+  
+          const allProduits = response.data;
+          console.log("Fetched produits:", allProduits);
+  
+          setProduits(allProduits);
+        } catch (error) {
+          console.error("Error fetching produits:", error);
+        }
+      };
+  
+      fetchProduits();
+    }, []);
+  
+ 
+  
+    const generateRandomNumber = (prefix) => {
+      const randomNum = Math.floor(100000 + Math.random() * 900000);
+      return `${prefix}${randomNum}`;
+    };
+  
+    const handleCommandTypeChange = (value) => {
+      const prefix = value === "devis" ? "D" : "C";
+      const randomNumber = generateRandomNumber(prefix);
+      form.setFieldsValue({
+        numCommand: randomNumber,
+      });
+    };
+  
+    // Handle client selection change
+    const handleClientChange = (clientId) => {
+      setSelectedLeadId(clientId);
+      const selectedClient = chatData.find((client) => client._id === clientId);
+      if (selectedClient) {
+        form.setFieldsValue({
+          nom: selectedClient.nom,
+          address: selectedClient.address,
+          ville: selectedClient.ville,
+          codepostal: selectedClient.codepostal,
+          email: selectedClient.email || selectedClient.email1,
+          phone: selectedClient.phone,
+          siret: selectedClient.siret,
+          raissociale: selectedClient.societe,
+        });
+      }
+    };
+  
+    const handleSubmitDevis = async (values) => {
+      try {
+        const token = localStorage.getItem("token");
+        const decodedToken = token ? jwtDecode(token) : null;
+        const commercialName = decodedToken?.name || decodedToken?.commercialName;
+  
+        if (!decodedToken) {
+          alert("User not authenticated");
+          return;
+        }
+  
+        // Get current form values including calculated totals
+        const formValues = form.getFieldsValue();
+  
+        // const commercialId = decodedToken.commercialId || null;
+        const formData = {
+          ...values,
+          totalHT: formValues.totalHT || 0,
+          totalTVA: formValues.totalTVA || 0,
+          totalTTC: formValues.totalTTC || 0,
+          quantite: formValues.quantite || 1,
+          prixUnitaire: formValues.prixUnitaire || 0,
+          session: decodedToken?.userId || decodedToken?.commercialId,
+          leadId: selectedLeadId,
+          commercialName,
+        };
+  
+        const response = await axios.post("/command", formData);
+        message.success("Devis ajoutée avec succès !");
+        setDevisModalVisible(false);
+        fetchCommands();
+      } catch (error) {
+        message.error("Impossible d'ajouter le devis");
+        console.error(error);
+      }
+    };
+
+    const calculateTotals = (quantity, unitPrice) => {
+      const qty = parseFloat(quantity) || 0;
+      const price = parseFloat(unitPrice) || 0;
+      const forfait = parseFloat(form.getFieldValue("forfait")) || 0;
+      const tvaRate = parseFloat(form.getFieldValue("TVA")) || 0;
+  
+      const baseHT = qty * price;
+      const totalHT = baseHT + forfait; // Include forfait in HT
+      const totalTVA = totalHT * (tvaRate / 100);
+      const totalTTC = totalHT + totalTVA;
+  
+      form.setFieldsValue({
+        totalHT: parseFloat(totalHT.toFixed(2)),
+        totalTVA: parseFloat(totalTVA.toFixed(2)),
+        totalTTC: parseFloat(totalTTC.toFixed(2)),
+        quantite: qty,
+        prixUnitaire: price,
+      });
+    };
+
+     useEffect(() => {
+        const getUserData = async () => {
+          try {
+            const response = await axios.get("/data");
+            console.log("Fetched data:", response.data);
+            setChatData(response.data.chatData);
+    
+          } catch (err) {
+            setError("Failed to fetch data");
+          } finally {
+            setLoading(false);
+          }
+        };
+    
+        getUserData();
+      }, []);
+  
+
+
+  const applyFilter = (filterType) => {
+    let filtered = [];
+    switch(filterType) {
+      case 'en_cours':
+        filtered = allCommands.filter(cmd => cmd.command_type === "devis");
+        break;
+      case 'accepte':
+        filtered = allCommands.filter(cmd => cmd.command_type === "commande");
+        console.log('filtered', filtered)
+        break;
+      case 'all':
+      default:
+        filtered = allCommands;
+        break;
+    }
+    setFilteredCommands(filtered);
+    updateStatistics(filtered);
+  };
+
+  const handleFilter = (filterType) => {
+    setActiveFilter(filterType);
+  };
 
   const updateStatistics = (commands) => {
     const totals = commands.reduce(
@@ -101,6 +276,8 @@ const AllDevis = () => {
     e.stopPropagation();
     window.location.href = `/leads/${record.lead}/create-command/${record._id}`;
   };
+
+
   
 
   const handleDelete = (id, e) => {
@@ -575,15 +752,128 @@ const AllDevis = () => {
       message.error("Échec de l'envoi du devis.");
     }
   };
+  const handleValidate = async (commandId) => {
+    try {
+      const currentCommand = allCommands.find(
+        (command) => command._id === commandId
+      );
+      if (!currentCommand) {
+        console.error("Commande non trouvée");
+        message.error("Commande non trouvée");
+        return;
+      }
   
+      const isCurrentlyValid = currentCommand.command_type === "commande";
+      const oldNumCommand = currentCommand.numCommand;
+      
+      let newNumCommand, newCommandType;
+      
+      if (isCurrentlyValid) {
+        // Revert to devis (invalidate)
+        newNumCommand = "D" + oldNumCommand.slice(1);
+        newCommandType = "devis";
+      } else {
+        // Validate to commande
+        newNumCommand = "C" + oldNumCommand.slice(1);
+        newCommandType = "commande";
+      }
+  
+      const response = await axios.put(`/command/validate/${commandId}`, {
+        ...currentCommand,
+        command_type: newCommandType,
+        numCommand: newNumCommand,
+        originalNumCommand: oldNumCommand,
+      });
+  
+      // Update the command in the UI instead of removing it
+      setAllCommands(prevCommands =>
+        prevCommands.map(command =>
+          command._id === commandId
+            ? {
+                ...command,
+                command_type: newCommandType,
+                numCommand: newNumCommand,
+                originalNumCommand: oldNumCommand
+              }
+            : command
+        )
+      );
+  
+      message.success(
+        isCurrentlyValid
+          ? "Devis invalidé avec succès !"
+          : "Devis validée avec succès !"
+      );
+      onValidate();
+    } catch (error) {
+      console.error("Error toggling command status:", error);
+      // Use a generic error message since we can't access isCurrentlyValid here
+      // message.error("❌ Échec de la modification du statut");
+    }
+  };
+
+  function stringToColor(str) {
+    // List of distinct Ant Design tag colors
+    const colors = [
+      'magenta', 'red', 'volcano', 'orange', 'gold',
+      'lime', 'green', 'cyan', 'blue', 'geekblue', 'purple'
+    ];
+    
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    return colors[Math.abs(hash) % colors.length];
+  }
 
   const columns = [
     {
       title: "Devis",
       dataIndex: "originalNumCommand",
       key: "originalNumCommand",
-      render: (text) => safeRender(text),
+      render: (text, record) => {
+        const decodedToken = jwtDecode(localStorage.getItem("token"));
+        const role = decodedToken?.role;
+        
+        return (
+          <div className="flex items-center gap-2">
+            {safeRender(text)}
+            {role === "Admin" && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleValidate(record._id);
+                }}
+                className={`px-2 py-1 text-xs rounded-md ${
+                  record.command_type === "commande"
+                    ? "bg-red-100 text-red-700 hover:bg-red-200"
+                    : "bg-green-100 text-green-700 hover:bg-green-200"
+                } transition-colors`}
+              >
+                {record.command_type === "commande" ? "Invalider" : "Valider"}
+              </button>
+            )}
+          </div>
+        );
+      },
       sorter: (a, b) => (a.originalNumCommand || "").localeCompare(b.originalNumCommand || ""),
+    },
+    {
+      title: "Statut",
+      dataIndex: "command_type",
+      key: "status",
+      render: (command_type) => (
+        <Tag color={command_type === "devis" ? "orange" : "green"}>
+          {command_type === "devis" ? "En cours" : "Accepté"}
+        </Tag>
+      ),
+      filters: [
+        { text: "En cours", value: "devis" },
+        { text: "Accepté", value: "commande" },
+      ],
+      onFilter: (value, record) => record.command_type === value,
     },
     {
       title: "Date",
@@ -606,68 +896,151 @@ const AllDevis = () => {
       render: (text) => safeRender(text),
       ellipsis: true,
     },
-    // {
-    //   title: "Produit",
-    //   dataIndex: "code",
-    //   key: "code",
-    //   render: (text) => safeRender(text),
-    //   ellipsis: true,
-    // },
     {
-      title: "Produit",
-      dataIndex: "code",
-      key: "code",
-      render: (codes) => (
-        <div style={{ lineHeight: "1.5" }}>
-          {codes?.map((code, index) => (
-            <div
-              key={index}
-              style={{
-                // display: "flex",
-                // alignItems: "flex-start",
-                marginBottom: 4,
-              }}
-            >
-              <span style={{ marginRight: 8 }}>•</span>
-              <span>{code}</span>
+      title: "Référence",
+      dataIndex: "reference",
+      key: "reference",
+      render: (text, record) => (
+        <div>
+          {record.items?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {record.items.map((item, index) => {
+                const colorHash = stringToColor(item.reference);
+                return (
+                  <Tag 
+                    key={index}
+                    color={colorHash}
+                    className="text-xs font-medium"
+                  >
+                    {item.reference} <span className="font-bold">(x{item.quantite})</span>
+                  </Tag>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       ),
     },
+ 
+      {
+        title: "Category",
+        dataIndex: "category",
+        key: "category",
+        render: (categoryString) => {
+          const categories = typeof categoryString === 'string' 
+            ? categoryString.split(',').map(c => c.trim()) 
+            : [];
+          
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {categories.map((category, index) => (
+                <Tag key={index} color="blue">
+                  {category}
+                </Tag>
+              ))}
+            </div>
+          );
+        },
+      },
+      // {
+      //   title: "Titre",
+      //   dataIndex: "title",
+      //   key: "title",
+      //   render: (text, record) => (
+      //     <div>
+      //       {record.items?.length > 0 && (
+      //         <div className="flex flex-wrap gap-1 mt-1">
+      //           {record.items.map((item, index) => {
+      //             // Generate a consistent color based on product reference
+      //             const colorHash = stringToColor(item.reference || item.title);
+      //             return (
+      //               <Tag 
+      //                 key={index}
+      //                 color={colorHash}
+      //                 className="text-xs font-medium"
+      //               >
+      //                 {item.quantite}x {item.title.split('(')[0].trim()}
+      //               </Tag>
+      //             );
+      //           })}
+      //         </div>
+      //       )}
+      //     </div>
+      //   ),
+      // },
     {
       title: "Quantité",
       dataIndex: "quantite",
       key: "quantite",
       render: (text) => `${safeRender(text, "0")}`,
-      // sorter: (a, b) => (a.quantite || 0) - (b.quantite || 0),
     },
+    // {
+    //   title: "Total HT",
+    //   dataIndex: "totalHT",
+    //   key: "totalHT",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+    // },
+    // {
+    //   title: "Total TVA",
+    //   dataIndex: "totalTVA",
+    //   key: "totalTVA",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+    // },
+    // {
+    //   title: "Total TTC",
+    //   dataIndex: "totalTTC",
+    //   key: "totalTTC",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
+    // },
     {
       title: "Total HT",
       dataIndex: "totalHT",
       key: "totalHT",
-      render: (text) => `${safeRender(text, "0")} €`,
+      render: (text, record) => (
+        <div className="text-right">
+          <div>{`${safeRender(text, "0")} €`}</div>
+          {record.items?.length > 0 && (
+            <div className="text-xs text-gray-500">
+              {record.items.map(item => item.montantHT + '€').join(' + ')}
+            </div>
+          )}
+        </div>
+      ),
       sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
     },
     {
       title: "Total TVA",
       dataIndex: "totalTVA",
       key: "totalTVA",
-      render: (text) => `${safeRender(text, "0")} €`,
-      sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+      render: (text, record) => (
+        <div className="text-right">
+          <div>{`${safeRender(text, "0")} €`}</div>
+          {record.items?.length > 0 && (
+            <div className="text-xs text-gray-500">
+              {record.items.map(item => item.montantTVA + '€').join(' + ')}
+            </div>
+          )}
+        </div>
+      ),
+      sorter: (a, b) => (a.totalTVA || 0) - (b.totalTVA || 0),
     },
     {
-      title: "Marge",
-      dataIndex: "marge",
-      key: "marge",
-      render: (text) => `${safeRender(text, "0")} €`,
-      sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
-    },
-    {
-      title: "Total TTC",
+      title: "Prix Total TTC",
       dataIndex: "totalTTC",
       key: "totalTTC",
-      render: (text) => `${safeRender(text, "0")} €`,
+      render: (text, record) => (
+        <div className="text-right">
+          <div className="font-medium">{`${safeRender(text, "0")} €`}</div>
+          {record.items?.length > 0 && (
+            <div className="text-xs text-gray-500">
+              {record.items.map(item => item.montantTTC + '€').join(' + ')}
+            </div>
+          )}
+        </div>
+      ),
       sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
     },
     {
@@ -701,18 +1074,37 @@ const AllDevis = () => {
   return (
     <div className="container mx-auto px-4 py-6">
       <h1 className="text-2xl font-bold mb-6">Devis Management</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <Statistic title="Total Devis" value={stats.totalCommands} />
+          <Button 
+            className="w-full mt-4 bg-blue-500 text-white font-bold"
+            onClick={() => setDevisModalVisible(true)}
+          >
+            Création Devis
+          </Button>
         </Card>
         <Card>
           <Statistic title="Total HT" value={stats.totalHT} suffix="€" />
+          <Button 
+            className={`w-full mt-4 ${activeFilter === 'en_cours' ? 'bg-blue-500' : 'bg-blue-300'} text-white font-bold`} 
+            onClick={() => handleFilter('en_cours')}
+          >
+            Devis en cours
+          </Button>
         </Card>
         <Card>
           <Statistic title="Total TTC" value={stats.totalTTC} suffix="€" />
+          <Button 
+            className={`w-full mt-4 ${activeFilter === 'accepte' ? 'bg-blue-500' : 'bg-blue-300'} text-white font-bold`} 
+            onClick={() => handleFilter('accepte')}
+          >
+            Devis Accepté
+          </Button>
         </Card>
       </div>
+
 
       <div className="bg-white p-4 rounded-lg shadow">
         <div className="flex justify-between items-center mb-4">
@@ -730,7 +1122,8 @@ const AllDevis = () => {
               </div>
             ),
           }))}
-          dataSource={allCommands}
+          // dataSource={allCommands}
+          dataSource={filteredCommands}
           rowKey="_id"
           loading={loading}
           pagination={{ pageSize: 10 }}
@@ -742,6 +1135,309 @@ const AllDevis = () => {
           })}
         />
       </div>
+        <Modal
+              title={
+                <div className="bg-gray-100 p-3 -mx-6 -mt-6 flex justify-between items-center sticky top-0 z-10 border-b">
+                  <span className="font-medium text-sm">Créer un Devis</span>
+                  <button
+                    onClick={() => setDevisModalVisible(false)}
+                    className="text-gray-500 hover:text-gray-700 focus:outline-none text-xs"
+                  >
+                    <CloseOutlined className="text-xs" />
+                  </button>
+                </div>
+              }
+              open={devisModalVisible}
+              onCancel={() => setDevisModalVisible(false)}
+              footer={null}
+              width="30%"
+              style={{
+                position: "fixed",
+                right: 0,
+                top: 0,
+                bottom: 0,
+                height: "100vh",
+                margin: 0,
+                padding: 0,
+                overflow: "hidden",
+              }}
+              bodyStyle={{
+                height: "calc(100vh - 49px)",
+                padding: "0 16px",
+                margin: 0,
+                overflowY: "auto",
+              }}
+              maskStyle={{
+                backgroundColor: "rgba(0, 0, 0, 0.1)",
+              }}
+              closeIcon={null}
+            >
+              <Form
+                form={form}
+                layout="vertical"
+                onFinish={handleSubmitDevis}
+                className="space-y-4 py-4"
+              >
+                <div className="flex items-center justify-center">
+                  <Form.Item
+                    name="command_type"
+                    className="font-bold w-full"
+                    rules={[
+                      { required: true, message: "Type de commande est requis" },
+                    ]}
+                  >
+                    <Radio.Group
+                      onChange={(e) => handleCommandTypeChange(e.target.value)}
+                      className="w-full flex justify-center items-center gap-6"
+                    >
+                      <Radio value="devis">Devis</Radio>
+                      <Radio value="commande">Contrat</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                </div>
+                <Form.Item
+                  label="Numéro de Commande"
+                  name="numCommand"
+                  rules={[
+                    { required: true, message: "Numéro de commande est requis" },
+                  ]}
+                >
+                  <Input
+                    disabled
+                    className="w-full"
+                    placeholder="Généré automatiquement"
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Date"
+                  name="date"
+                  rules={[{ required: true, message: "La date est requise" }]}
+                >
+                  <DatePicker
+                    className="w-full"
+                    placeholder="Sélectionnez une date"
+                    format="YYYY-MM-DD"
+                  />
+                </Form.Item>
+      
+                <Form.Item
+                  name="nom"
+                  label="Séléctioner le client"
+                  rules={[{ required: true, message: "Client est requis" }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="children"
+                    className="w-full"
+                    onChange={handleClientChange}
+                    placeholder="Sélectionnez un client"
+                  >
+                    {chatData.map((client) => (
+                      <Option key={client._id} value={client._id}>
+                        {client.nom || "Client sans nom"}{" "}
+                        {client.phone ? `- ${client.phone}` : ""}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+      
+                {/* Product Selection Section */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold mb-4">
+                    Sélection des Produits
+                  </h3>
+      
+                  {/* Product Dropdown - Full width */}
+                  <Form.Item
+                    label="Produit"
+                    name="produit"
+                    rules={[{ required: true, message: "Produit est requis" }]}
+                    className="w-full"
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="children"
+                      placeholder="Sélectionnez un produit"
+                      onChange={(value) => {
+                        const selectedProduct = produits.find((p) => p._id === value);
+                        if (selectedProduct) {
+                          form.setFieldsValue({
+                            category: selectedProduct.category,
+                            title: selectedProduct.title,
+                            reference: selectedProduct.reference,
+                            description: selectedProduct.description,
+                            TVA: selectedProduct.tva || 10,
+                          });
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      {produits.map((produit) => (
+                        <Option key={produit._id} value={produit._id}>
+                          {produit.title} - {produit.reference}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+      
+                  {/* Category - Full width */}
+                  <Form.Item label="Catégorie" name="category" className="w-full">
+                    <Input disabled className="w-full" />
+                  </Form.Item>
+      
+                  {/* Reference - Full width */}
+                  <Form.Item label="Référence" name="reference" className="w-full">
+                    <Input disabled className="w-full" />
+                  </Form.Item>
+      
+                  {/* Title - Full width */}
+                  <Form.Item label="Titre" name="title" className="w-full">
+                    <Input disabled className="w-full" />
+                  </Form.Item>
+      
+                  {/* Description - Full width */}
+                  <Form.Item
+                    label="Description"
+                    name="description"
+                    className="w-full"
+                  >
+                    <Input.TextArea rows={3} disabled className="w-full" />
+                  </Form.Item>
+      
+                  {/* Quantity and Price in a row */}
+                  <div className="flex gap-4">
+                    <Form.Item
+                      label="Quantité"
+                      name="quantite"
+                      rules={[{ required: true, message: "Quantité est requise" }]}
+                      className="flex-1"
+                    >
+                      <Input
+                        type="number"
+                        min={1}
+                        className="w-full"
+                        onChange={(e) =>
+                          calculateTotals(
+                            e.target.value,
+                            form.getFieldValue("prixUnitaire")
+                          )
+                        }
+                      />
+                    </Form.Item>
+      
+                    <Form.Item
+                      label="Prix de vente (€)"
+                      name="prixUnitaire"
+                      rules={[
+                        { required: true, message: "Prix de vente est requis" },
+                      ]}
+                      className="flex-1"
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        className="w-full"
+                        onChange={(e) =>
+                          calculateTotals(
+                            form.getFieldValue("quantite"),
+                            e.target.value
+                          )
+                        }
+                      />
+                    </Form.Item>
+      
+                    <Form.Item name="totalHT" hidden>
+                      <Input type="hidden" />
+                    </Form.Item>
+                    <Form.Item name="totalTTC" hidden>
+                      <Input type="hidden" />
+                    </Form.Item>
+                    <Form.Item name="totalTVA" hidden>
+                      <Input type="hidden" />
+                    </Form.Item>
+                    <Form.Item name="TVA" hidden>
+                      <Input type="hidden" />
+                    </Form.Item>
+                  </div>
+      
+                  {/* Forfait - Full width */}
+                  <Form.Item label="Forfait (€)" name="forfait" className="w-full">
+                    <Input type="number" step="0.01" min={0} className="w-full" />
+                  </Form.Item>
+                </div>
+      
+                <Form.Item
+                  label="Adresse"
+                  name="address"
+                  rules={[{ required: false, message: "L'adresse est requis" }]}
+                >
+                  <Input.TextArea
+                    placeholder="Adresse du client"
+                    className="w-full"
+                    rows={2}
+                  />
+                </Form.Item>
+      
+                <Form.Item
+                  label="Email"
+                  name="email"
+                  rules={[
+                    { required: true, message: "L'email est requis" },
+                    { type: "email", message: "Email invalide" },
+                  ]}
+                >
+                  <Input placeholder="email@client.com" className="w-full" />
+                </Form.Item>
+      
+                <Form.Item
+                  label="Téléphone"
+                  name="phone"
+                  rules={[{ required: true, message: "Le téléphone est requis" }]}
+                >
+                  <Input placeholder="0612345678" className="w-full" />
+                </Form.Item>
+      
+                <Form.Item label="TVA">
+                  <Input value={`${TVA}%`} disabled className="w-full" />
+                </Form.Item>
+      
+                <Form.Item label="Siret" name="siret" rules={[{ required: false }]}>
+                  <Input placeholder="123 456 789 00012" className="w-full" />
+                </Form.Item>
+      
+                <Form.Item
+                  label="Code Postal"
+                  name="codepostal"
+                  rules={[{ required: false }]}
+                >
+                  <Input placeholder="75000" className="w-full" />
+                </Form.Item>
+      
+                <Form.Item
+                  label="Raison Sociale"
+                  name="raissociale"
+                  rules={[{ required: false }]}
+                >
+                  <Input placeholder="Entreprise SARL" className="w-full" />
+                </Form.Item>
+      
+                <Form.Item label="Ville" name="ville" rules={[{ required: false }]}>
+                  <Input placeholder="Paris" className="w-full" />
+                </Form.Item>
+      
+                <div className="flex justify-center gap-2 pt-4 border-t">
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={loading}
+                    className="bg-green-600 text-white"
+                  >
+                    Créer le Devis
+                  </Button>
+                </div>
+              </Form>
+            </Modal>
     </div>
   );
 };

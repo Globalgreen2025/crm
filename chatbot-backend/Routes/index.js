@@ -56,11 +56,11 @@ router.delete('/lead/:id/delete-comment/:commentId', DataController.deleteCommen
 
 
 // routes for program
-router.post('/program', ProgramController.createProgram);
-router.get('/program', ProgramController.getAllPrograms);
-router.get('/program/:id', ProgramController.getProgramById);
-router.put('/program/:id', ProgramController.updateProgramById);
-router.delete('/program/:id', ProgramController.deleteProgramById);
+// router.post('/program', ProgramController.createProgram);
+// router.get('/program', ProgramController.getAllPrograms);
+// router.get('/program/:id', ProgramController.getProgramById);
+// router.put('/program/:id', ProgramController.updateProgramById);
+// router.delete('/program/:id', ProgramController.deleteProgramById);
 
 // calendar routes
 
@@ -82,6 +82,7 @@ router.post("/command/send-facture-email/:id", ProgramController.sendFactureEmai
 
 // Produit routes
 router.post('/produit', ProduitController.createProduit);
+router.get('/produit', ProduitController.getAllProduits);
 router.get('/produits/:id', verifyToken, ProduitController.getAllProduits);
 router.get('/produit/:id', ProduitController.getProduitById);
 router.put('/produit/:id', ProduitController.updateProduitById);
@@ -97,6 +98,13 @@ router.put('/panier/:panierId', PanierController.updatePanierItem);
 
 // import leads routes
 router.post('/import', DataController.importLeads);
+
+router.get('/tickets', DataController.getAllTickets);
+router.post('/tickets', verifyToken, DataController.createTicket);
+router.put('/tickets/:id', verifyToken, DataController.updateTicket);
+router.get('/tickets/:id', DataController.getTicketById);
+router.delete('/tickets/:id', DataController.deleteTicket);
+
 
 
 module.exports = router;

@@ -372,18 +372,17 @@ useEffect(() => {
       render: (text) => text || ""
     },
     {
-      title: "Status",
-      dataIndex: "request_who",
-      key: "request_who",
-      render: (text, record) => text || record.status || ""
+      title: "STATUS LEAD",
+      dataIndex: "type",  // This ensures the column can be sorted by the original value
+      key: "statusLead",
+      render: (type) => (
+        <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+          type === "client" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+        }`}>
+          {type === "client" ? "Client" : "Prospect"}
+        </span>
+      ),
     },
-    // {
-    //   title: "Besoin",
-    //   dataIndex: "information_request",
-    //   key: "information_request",
-    //   render: (text, record) =>
-    //     text || record.demande || "",
-    // },
     {
       title: "Siret",
       dataIndex: "siret",

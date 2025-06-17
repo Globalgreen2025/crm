@@ -7,26 +7,40 @@ const programSchema = new mongoose.Schema(
       ref: "Admin",
       required: true,
     },
-    title: { type: String, required: true },
-    mainText: { type: String, required: true },
-    imageUrl: { type: String },
-    coutAchat: {
-      type: Number
-    }, 
-    fraisGestion:{
-      type: Number
-    }, 
-    total: {
+
+    prixVente: {
       type: Number,
-      required: true,
+      required: false
     },
-    surface: {
+    forfait: {
+      type: Number,
+      required: false
+    },
+    category: {
       type: String,
-      enum: ["G", "HG"], // G or HG
+      enum: [
+        'OUVERTURE',
+        'Assechement des murs',
+        'TOITURE',
+        'ISOLATION',
+        'RADIATEUR',
+        'VENTILATION',
+        'TABLEAUX ELECTRIQUES',
+        'FACADE EXTERIEUR'
+      ],
+      required: false
     },
-    taillePrixLabel: {
-      type: String, // e.g., "100 mm - 140€"
-      required: true,
+    reference: {
+      type: String,
+      required: false
+    },
+    title: {
+      type: String,
+      required: false
+    },
+    description: {
+      type: String,
+      required: false
     },
   },
   { timestamps: true }

@@ -17,12 +17,20 @@ const CommandeSchema = new mongoose.Schema({
   ville: String,
   address: String,
   commercialName: { type: String },
-  code: {
-    type: [String],
+  title: {
+    type: String,
+    required: false,
+  },
+  category: {
+    type: String,
+    required: false,
+  },
+  reference: {
+    type: String,
     required: false,
   },
   description: {
-    type: [String],
+    type: String,
     required: false,
   },
   numCommand: {
@@ -33,7 +41,7 @@ const CommandeSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
-marque: String, 
+
   TVA: {
     type: Number,
   },
@@ -45,25 +53,82 @@ marque: String,
   },
   totalHT: {
     type: Number,
-  },
-  marge: {
-    type: Number,
+    required: true,
   },
   totalTTC: {
     type: Number,
+    required: true,
   },
   totalTVA: {
     type: Number,
+    required: true,
   },
   quantite: {
     type: Number,
+    required: true,
   },
+  items: [{
+    produit: { type: mongoose.Schema.Types.ObjectId, ref: 'Produit' },
+    title: String,
+    description: String,
+    reference: String,
+    category: String,
+    quantite: Number,
+    prixUnitaire: Number,
+    montantHT: Number,
+    montantTVA: Number,
+    montantTTC: Number,
+    tva: Number,
+    forfait: Number
+  }],
 
   session: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Commercial", // Referring to the Commercial model
     required: false, // If this is optional, you can make it not required
   },
+});
+
+CommandeSchema.post('findOneAndUpdate', async function(doc) {
+  if (doc) {
+    await handleCommandTypeChange(doc);
+  }
+});
+
+CommandeSchema.post('save', async function(doc) {
+  if (doc.command_type === 'commande') {
+    try {
+      await mongoose.model('Chat').findByIdAndUpdate(
+        doc.lead,
+        { $set: { type: 'client' } },
+        { new: true }
+      );
+      console.log(`Automatically updated lead ${doc.lead} to client status`);
+    } catch (error) {
+      console.error('Error updating lead status:', error);
+    }
+  }
+});
+
+CommandeSchema.pre('remove', async function(next) {
+  try {
+    const remainingCommands = await this.model('Commande').countDocuments({
+      lead: this.lead,
+      command_type: 'commande',
+      _id: { $ne: this._id }
+    });
+
+    if (remainingCommands === 0) {
+      await mongoose.model('Chat').findByIdAndUpdate(
+        this.lead,
+        { $set: { type: 'prospect' } }
+      );
+      console.log(`Reverted lead ${this.lead} to prospect status`);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 

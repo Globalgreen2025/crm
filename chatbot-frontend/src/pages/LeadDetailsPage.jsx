@@ -272,11 +272,11 @@ const LeadDetailsPage = () => {
       {/* Page Title */}
       <div className="flex-1 mb-12">
         <h1 className="text-center text-2xl font-bold text-gray-800">
-          Details Lead
+          Details du client
         </h1>
         <div className="flex justify-center mb-4">
           <span className="px-4 py-2 bg-purple-900 text-white font-bold rounded-full">
-            {lead.request_name}
+            {lead.nom}
           </span>
         </div>
       </div>
@@ -602,11 +602,11 @@ const LeadDetailsPage = () => {
                 />
               </div>
             </TabPane>
-            <TabPane tab="Contrat" key="8">
+            {/* <TabPane tab="Contrat" key="8">
               <div className="space-y-4">
                 <Command key={refreshCounter} />
               </div>
-            </TabPane>
+            </TabPane> */}
           </Tabs>
         </div>
       </div>
@@ -623,7 +623,7 @@ const LeadDetailsPage = () => {
           onClick={() => setIsModalOpen(true)}
           className="bg-purple-800 hover:bg-purple-900 text-white font-semibold py-2 px-4 rounded"
         >
-          Modifier Lead
+          Modifier le client
         </button>
       </div>
 
@@ -631,7 +631,7 @@ const LeadDetailsPage = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
            <div className="bg-white rounded-xl shadow-lg p-6 sm:w-11/12 lg:w-2/3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 text-center">
-              Modify Lead
+            Modifier le client
             </h2>
             <div className="flex flex-col space-y-6 justify-center">
               {/* Form Fields */}
@@ -660,7 +660,7 @@ const LeadDetailsPage = () => {
                     value={formData.phone || ""}
                     onChange={handleInputChange}
                     className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="Enter Lead's Phone"
+                    placeholder="Enter cllient Phone"
                   />
                 </div>
               </div>
@@ -668,15 +668,15 @@ const LeadDetailsPage = () => {
               <div className="flex gap-4">
               <div className="flex flex-col gap-2 w-full">
                   <label className="text-lg font-medium text-gray-700">
-                    Besoin
+                  Sociéte
                   </label>
                   <input
                     type="text"
-                    name="besoin"
-                    value={formData.besoin || ""}
+                    name="societe"
+                    value={formData.societe || ""}
                     onChange={handleInputChange}
                     className="w-full border-2 border-gray-300 rounded-lg p-3 text-lg focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="Enter raison de contact"
+                    placeholder="Enter client Sociéte"
                   />
                 </div>
                 <div className="flex flex-col gap-2 w-full">

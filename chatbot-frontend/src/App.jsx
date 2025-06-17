@@ -30,15 +30,16 @@ import TéléchargerDevis from "./pages/TéléchargerDevis";
 import AllCommands from "./pages/TéléchargerContract";
 import Facture from "./components/Facture";
 import ImportLeads from "./pages/ImportLeads";
+import TicketDetail from "./pages/Admin/TicketDetail";
 
 
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
 axios.defaults.withCredentials = true;
-export const callApiClient = axios.create({
-  baseURL: import.meta.env.VITE_CALL_API_BASE_URL,
-  withCredentials: true,
-});
-console.log("VITE_CALL_API_BASE_URL:", import.meta.env.VITE_CALL_API_BASE_URL);
+// export const callApiClient = axios.create({
+//   baseURL: import.meta.env.VITE_CALL_API_BASE_URL,
+//   withCredentials: true,
+// });
+// console.log("VITE_CALL_API_BASE_URL:", import.meta.env.VITE_CALL_API_BASE_URL);
 
 function App() {
   
@@ -64,7 +65,8 @@ function App() {
 
             <Route path="/CalendrierCommerciale" element={<MyCalendar />} />
             <Route path="/Devis" element={<TéléchargerDevis />} />
-            <Route path='/Factures' element={<Facture/>} />
+            <Route path='/tickets' element={<Facture/>} />
+            <Route path="/reclamations/:id" element={<TicketDetail />} />
             <Route path="/Contrats" element={<AllCommands />} />
             <Route path="/import-leads" element={<ImportLeads />} />
             {/* <Route path="/lead/:id" element={<LeadDetailsPage />}/> */}

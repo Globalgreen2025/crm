@@ -7,7 +7,7 @@ export const UserContext = createContext();
 export const UserContextProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem('token')); 
     const decodedToken = token ? jwtDecode(token) : "";
-    console.log('decodedToken', decodedToken);
+    console.log("Decoded Token:", decodedToken);
 
     const isLoggedIn = () => {
         if (token) {

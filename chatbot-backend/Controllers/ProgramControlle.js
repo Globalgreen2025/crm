@@ -5,75 +5,129 @@ const mongoose = require("mongoose");
 const nodemailer = require("nodemailer");
 
 class ProgramController {
-  static async createProgram(req, res) {
-    try {
-        const { title, mainText, imageUrl, userId, coutAchat, fraisGestion, total, surface, taillePrixLabel } = req.body;
-        console.log('req.body', req.body)
-        if (!userId) {
-          return res.status(400).json({ message: 'User ID is required' });
-      }
-        const newProgram = new Program({ title, mainText, imageUrl, userId, coutAchat, fraisGestion, total, surface, taillePrixLabel });
-        await newProgram.save();
-        res.status(201).json(newProgram);
-      } catch (error) {
-        console.error('Error creating program:', error);
-        res.status(500).json({ message: 'Failed to create program.' });
-      }
-  }
+ static async createProgram(req, res) {
+  const { userId } = req.body;
+     try {
+
+       
+       const {
+          userId,
+         category,
+         reference,
+         title,
+         description,
+         prixVente,
+         forfait,
+       } = req.body;
+ 
+       const newProduit = new Program({
+        
+         userId,
+         category,
+         reference,
+         title,
+         description,
+         prixVente,
+         forfait,
+         
+       });
+ 
+       await newProduit.save();
+       res.status(201).json(newProduit);
+     } catch (error) {
+       console.error("Error creating produit:", error);
+       res.status(500).json({ message: "Failed to create produit." });
+     }
+   }
+ 
+   static async getProgramById(req, res) {
   
-  static async getAllsCommands (req, res) {
+     
+     try {
+       const produits = await Program.find();
+       res.status(200).json(produits);
+     } catch (error) {
+       console.error("Error fetching produits:", error);
+       res.status(500).json({ message: "Failed to fetch produits." });
+     }
+   }
+ 
+   static async updateProgramById(req, res) {
+     const { id } = req.params;
+     const {
+       category,
+       reference,
+       title,
+       description,
+       prixVente,
+       forfait,
+       
+ 
+       userId,
+     } = req.body;
+
+     try {
+       const updatedProduit = await Program.findByIdAndUpdate(
+         id,
+         {
+           category,
+           reference,
+           title,
+           description,
+           prixVente,
+           forfait,
+         },
+         { new: true }
+       );
+ 
+       if (!updatedProduit) {
+         return res.status(404).json({ message: "Produit not found." });
+       }
+ 
+       res.status(200).json(updatedProduit);
+     } catch (error) {
+       console.error("Error updating produit:", error);
+       res.status(500).json({ message: "Failed to update produit." });
+     }
+   }
+ 
+   // static async deleteProduitById(req, res) {
+   //   const { id } = req.params;
+   //   try {
+   //     const deletedProduit = await Produit.findByIdAndDelete(id);
+   //     if (!deletedProduit) {
+   //       return res.status(404).json({ message: "Produit not found." });
+   //     }
+   //     res.status(200).json({ message: "Produit deleted successfully." });
+   //   } catch (error) {
+   //     console.error("Error deleting produit:", error);
+   //     res.status(500).json({ message: "Failed to delete produit." });
+   //   }
+   // }
+ 
+   // New method to get all categories
   
-    // console.log('session', session)
-  try {
-    const commands = await Command.find().sort({ createdAt: -1 });
-    
-    // console.log('Found commands:', commands);
-    res.status(200).json(commands);
-  } catch (error) {
-    console.error("Error fetching commands:", error);
-    res.status(500).json({ message: "Error fetching commands", error });
-  }
-  }
+   static async getCategories(req, res) {
+     try {
+       const categories = [
+         'OUVERTURE',
+         'Assechement des murs',
+         'TOITURE',
+         'ISOLATION',
+         'RADIATEUR',
+         'VENTILATION',
+         'TABLEAUX ELECTRIQUES',
+         'FACADE EXTERIEUR'
+       ];
+       res.status(200).json(categories);
+     } catch (error) {
+       console.error("Error fetching categories:", error);
+       res.status(500).json({ message: "Failed to fetch categories." });
+     }
+   }
 
-  static async getAllPrograms(req, res) {
-    try {
-        const programs = await Program.find(); 
-        res.status(200).json(programs);
-      } catch (error) {
-        console.error('Error fetching programs:', error);
-        res.status(500).json({ message: 'Failed to fetch programs.' });
-      }
-  }
-
-  static async getProgramById(req, res) {
-    try {
-        const { id } = req.params;
-        const program = await Program.findById(id);
-        if (!program) {
-          return res.status(404).json({ message: 'Program not found.' });
-        }
-        res.status(200).json(program);
-      } catch (error) {
-        console.error('Error fetching program:', error);
-        res.status(500).json({ message: 'Failed to fetch program.' });
-      }
-  }
-
-  static async updateProgramById(req, res) {
-    try {
-        const { id } = req.params;
-        const { title, mainText, imageUrl, userId, coutAchat, fraisGestion, total, surface, taillePrixLabel } = req.body;
-        const updatedProgram = await Program.findByIdAndUpdate(
-          id,
-          { title, mainText, imageUrl, userId, coutAchat, fraisGestion, total, surface, taillePrixLabel },
-          { new: true }
-        );
-        res.status(200).json(updatedProgram);
-      } catch (error) {
-        console.error('Error updating program:', error);
-        res.status(500).json({ message: 'Failed to update program.' });
-      }
-    };
+   static async getAllPrograms(req, res) {}
+ 
   
 
   static async deleteProgramById(req, res) {
@@ -233,9 +287,11 @@ static async createCommand(req, res) {
       ville,
       address,
       numCommand,
-      code,
-      marge,
-      marque
+      category,
+      title,
+      reference,
+      items
+
     } = req.body;
 
     const commandData = {
@@ -260,9 +316,10 @@ static async createCommand(req, res) {
       ville,
       address,
       numCommand,
-      code,
-      marge,
-      marque,
+      category,
+      title,
+      reference,
+      items,
     };
 
     // Store originalNumCommand if it starts with "D"
@@ -295,6 +352,20 @@ try {
   }
  }
 
+ static async getAllsCommands (req, res) {
+  
+  // console.log('session', session)
+try {
+  const commands = await Command.find().sort({ createdAt: -1 });
+  
+  // console.log('Found commands:', commands);
+  res.status(200).json(commands);
+} catch (error) {
+  console.error("Error fetching commands:", error);
+  res.status(500).json({ message: "Error fetching commands", error });
+}
+}
+
  static async getCommandById (req, res) {
   const { commandId } = req.params;
   console.log('commandId', commandId)
@@ -318,9 +389,7 @@ try {
 
 static async validateCommand (req, res) {
 const { id } = req.params;
-  
-
-
+console.log('id', id)
   try {
     // Fetch the existing command
     const command = await Command.findById(id);
@@ -373,7 +442,6 @@ const { id } = req.params;
  static async updateCommandById(req, res) {
   const { id } = req.params;
   const updateFields = req.body;
-  console.log("updateFields", updateFields)
 
   try {
     const updatedCommand = await Command.findByIdAndUpdate(id, updateFields, {

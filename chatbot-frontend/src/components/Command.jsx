@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
-import { Table, Space, message, Card, Descriptions, Modal } from "antd";
+import { Table, Space, message, Card, Descriptions, Modal, Tag } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
@@ -79,67 +79,27 @@ const Command = ({ refreshTrigger }) => {
 
   const columns = [
     {
+      title: "Référence",
+      dataIndex: "reference",
+      key: "reference",
+    },
+    {
+      title: "Category",
+      dataIndex: "category",
+      key: "category",
+      render: (category) => <Tag color="blue">{category}</Tag>,
+    },
+    {
       title: "Titre",
-      dataIndex: "code",
-      key: "code",
-      render: (codes) => (
-        <div style={{ lineHeight: "1.5" }}>
-          {codes?.map((code, index) => (
-            <div
-              key={index}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                marginBottom: 4,
-              }}
-            >
-              <span style={{ marginRight: 8 }}>•</span>
-              <span>{code}</span>
-            </div>
-          ))}
-        </div>
-      ),
+      dataIndex: "title",
+      key: "title",
     },
     {
       title: "Type de Commande",
       dataIndex: "command_type",
       key: "command_type",
     },
-    {
-      title: "Description",
-      dataIndex: "description",
-      key: "description",
-      render: (descriptions) => (
-        <ul
-          style={{
-            margin: 0,
-            paddingLeft: 20,
-            listStyleType: "none",
-          }}
-        >
-          {descriptions?.map((desc, index) => (
-            <li
-              key={index}
-              style={{
-                position: "relative",
-                paddingLeft: 15,
-                marginBottom: 4,
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  left: 0,
-                }}
-              >
-                •
-              </span>
-              {desc}
-            </li>
-          ))}
-        </ul>
-      ),
-    },
+ 
     {
       title: "Quantité",
       dataIndex: "quantite",
@@ -189,10 +149,10 @@ const Command = ({ refreshTrigger }) => {
             className="text-red-500 cursor-pointer"
             onClick={() => handleDelete(record._id)}
           />
-          <SearchOutlined
+          {/* <SearchOutlined
             className="text-green-500 cursor-pointer"
             onClick={() => handleViewDetails(record._id)}
-          />
+          /> */}
         </Space>
       ),
     },

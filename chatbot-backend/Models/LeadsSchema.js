@@ -43,12 +43,7 @@ const chatSchema = new mongoose.Schema(
       default: "",
       // unique: true,
     },
-    // phone1: {
-    //   type: String,
-    //   required: false,
-    //   default: "",
-    //   // unique: true,
-    // },
+   
     phoneFix: {
       type: String,
       default: "",
@@ -62,9 +57,21 @@ const chatSchema = new mongoose.Schema(
       default: "",
     },
 
+    // siret: {
+    //   type: Number,
+    //   default: "",
+    // },
     siret: {
-      type: Number,
+      type: String,
       default: "",
+      validate: {
+        validator: function(v) {
+          if (!v) return true; // Allow empty
+          const digitsOnly = v.replace(/\D/g, '');
+          return digitsOnly.length === 14;
+        },
+        message: props => `${props.value} n'est pas un numéro SIRET valide (doit contenir 14 chiffres)`
+      }
     },
     reglement: {
       type: String,
@@ -105,11 +112,14 @@ const chatSchema = new mongoose.Schema(
     },
 
     type: { type: String, default: "prospect" },
-    // phone1: { type: String, default: "" },
-    // email1: { type: String, default: "" },
     commentaires: [commentSchema],
     commercial: { type: mongoose.Schema.Types.ObjectId, ref: "Commercial" },
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "Manager" },
+    // In your Chat schema add:
+tickets: [{ 
+  type: mongoose.Schema.Types.ObjectId, 
+  ref: 'Ticket' 
+}]
   },
   { timestamps: true }
 );

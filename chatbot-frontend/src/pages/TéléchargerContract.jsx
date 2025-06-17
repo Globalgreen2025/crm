@@ -55,8 +55,14 @@ const AllCommands = () => {
       const currentUserId = decodedToken?.userId;
       const role = decodedToken.role
       if (role === "Admin") {
-        setAllCommands(commandsData); // Set only the "devis" commands
-        updateStatistics(commandsData);
+        const filterecommand = commandsData
+
+      // Filter commands to display only "devis" type
+      const devisCommands = filterecommand.filter(
+        (command) => command.command_type === "commande"
+      );
+        setAllCommands(devisCommands); // Set only the "devis" commands
+        updateStatistics(devisCommands);
       } else {
         const filterecommand = commandsData.filter(
           (cmd) => cmd.session === currentUserId
@@ -71,9 +77,6 @@ const AllCommands = () => {
       setAllCommands(devisCommands); // Set only the "devis" commands
       updateStatistics(devisCommands);
       }
-
-      
-        
       setLoading(false);
     } catch (error) {
       console.error("Error fetching commands:", error);
@@ -133,6 +136,21 @@ const AllCommands = () => {
     return value !== undefined && value !== null ? value : fallback;
   };
 
+  function stringToColor(str) {
+    // List of distinct Ant Design tag colors
+    const colors = [
+      'magenta', 'red', 'volcano', 'orange', 'gold',
+      'lime', 'green', 'cyan', 'blue', 'geekblue', 'purple'
+    ];
+    
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    return colors[Math.abs(hash) % colors.length];
+  }
 
   const columns = [
     {
@@ -163,28 +181,53 @@ const AllCommands = () => {
       render: (text) => safeRender(text),
       ellipsis: true,
     },
-    {
-      title: "Produit",
-      dataIndex: "code",
-      key: "code",
-      render: (codes) => (
-        <div style={{ lineHeight: "1.5" }}>
-          {codes?.map((code, index) => (
-            <div
-              key={index}
-              style={{
-                // display: "flex",
-                // alignItems: "flex-start",
-                marginBottom: 4,
-              }}
-            >
-              <span style={{ marginRight: 8 }}>•</span>
-              <span>{code}</span>
+ {
+      title: "Référence",
+      dataIndex: "reference",
+      key: "reference",
+      render: (text, record) => (
+        <div>
+          {record.items?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {record.items.map((item, index) => {
+                const colorHash = stringToColor(item.reference || item.title);
+                return (
+                  <Tag 
+                    key={index}
+                    color={colorHash}
+                    className="text-xs font-medium"
+                  >
+                    {item.reference} <span className="font-bold">(x{item.quantite})</span>
+                  </Tag>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       ),
     },
+ 
+      {
+        title: "Category",
+        dataIndex: "category",
+        key: "category",
+        render: (categoryString) => {
+          const categories = typeof categoryString === 'string' 
+            ? categoryString.split(',').map(c => c.trim()) 
+            : [];
+          
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {categories.map((category, index) => (
+                <Tag key={index} color="blue">
+                  {category}
+                </Tag>
+              ))}
+            </div>
+          );
+        },
+      },
+   
     {
       title: "Quantité",
       dataIndex: "quantite",
@@ -192,32 +235,80 @@ const AllCommands = () => {
       render: (text) => `${safeRender(text, "0")}`,
       // sorter: (a, b) => (a.quantite || 0) - (b.quantite || 0),
     },
+    // {
+    //   title: "Total HT",
+    //   dataIndex: "totalHT",
+    //   key: "totalHT",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+    // },
+    // {
+    //   title: "Total TVA",
+    //   dataIndex: "totalTVA",
+    //   key: "totalTVA",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+    // },
+    // {
+    //   title: "Marge",
+    //   dataIndex: "marge",
+    //   key: "marge",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+    // },
+    // {
+    //   title: "Total TTC",
+    //   dataIndex: "totalTTC",
+    //   key: "totalTTC",
+    //   render: (text) => `${safeRender(text, "0")} €`,
+    //   sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
+    // },
     {
       title: "Total HT",
       dataIndex: "totalHT",
       key: "totalHT",
-      render: (text) => `${safeRender(text, "0")} €`,
+      render: (text, record) => (
+        <div className="text-right">
+          <div>{`${safeRender(text, "0")} €`}</div>
+          {record.items?.length > 0 && (
+            <div className="text-xs text-gray-500">
+              {record.items.map(item => item.montantHT + '€').join(' + ')}
+            </div>
+          )}
+        </div>
+      ),
       sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
     },
     {
       title: "Total TVA",
       dataIndex: "totalTVA",
       key: "totalTVA",
-      render: (text) => `${safeRender(text, "0")} €`,
-      sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
-    },
-    {
-      title: "Marge",
-      dataIndex: "marge",
-      key: "marge",
-      render: (text) => `${safeRender(text, "0")} €`,
-      sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+      render: (text, record) => (
+        <div className="text-right">
+          <div>{`${safeRender(text, "0")} €`}</div>
+          {record.items?.length > 0 && (
+            <div className="text-xs text-gray-500">
+              {record.items.map(item => item.montantTVA + '€').join(' + ')}
+            </div>
+          )}
+        </div>
+      ),
+      sorter: (a, b) => (a.totalTVA || 0) - (b.totalTVA || 0),
     },
     {
       title: "Total TTC",
       dataIndex: "totalTTC",
       key: "totalTTC",
-      render: (text) => `${safeRender(text, "0")} €`,
+      render: (text, record) => (
+        <div className="text-right">
+          <div className="font-medium">{`${safeRender(text, "0")} €`}</div>
+          {record.items?.length > 0 && (
+            <div className="text-xs text-gray-500">
+              {record.items.map(item => item.montantTTC + '€').join(' + ')}
+            </div>
+          )}
+        </div>
+      ),
       sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
     },
     {

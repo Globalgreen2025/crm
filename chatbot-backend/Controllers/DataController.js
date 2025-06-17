@@ -1,5 +1,8 @@
 const Chat = require("../Models/LeadsSchema");
 const mongoose = require("mongoose");
+const Ticket = require("../Models/ticketModel");
+const Commercial = require("../Models/commercialModel");
+const Commande = require("../Models/commandSchema");
 
 class DataController {
   
@@ -303,37 +306,76 @@ static async searchData(req, res) {
 }
 
   
-  static async updateStatusLead(req, res) {
-    const { id } = req.params; // Get the lead's ID from the URL
-    const { statusLead } = req.body; // Get the new statusLead from the request body
+  // static async updateStatusLead(req, res) {
+  //   const { id } = req.params; // Get the lead's ID from the URL
+  //   const { statusLead } = req.body; // Get the new statusLead from the request body
 
+  //   // Validate the new status value
+  //   const validStatuses = ["nouveau", "prospect", "client"]; // Define the valid statuses
+  //   if (!validStatuses.includes(statusLead)) {
+  //     return res.status(400).json({ error: "Invalid status value" });
+  //   }
+
+  //   try {
+  //     // Find the lead by ID and update the 'type' field
+  //     const updatedLead = await Chat.findByIdAndUpdate(
+  //       id,
+  //       { type: statusLead }, // Update the 'type' field
+  //       { new: true } // Return the updated document
+  //     );
+
+  //     // If the lead is not found, return an error
+  //     if (!updatedLead) {
+  //       return res.status(404).json({ error: "Lead not found" });
+  //     }
+
+  //     // Return the updated lead as a response
+  //     res.status(200).json(updatedLead);
+  //   } catch (error) {
+  //     console.error("Error updating lead:", error);
+  //     res.status(500).json({ error: "Internal server error" });
+  //   }
+  // }
+  static async updateStatusLead(req, res) {
+    const { id } = req.params;
+    const { statusLead } = req.body;
+  
     // Validate the new status value
-    const validStatuses = ["nouveau", "prospect", "client"]; // Define the valid statuses
+    const validStatuses = ["nouveau", "prospect", "client"];
     if (!validStatuses.includes(statusLead)) {
       return res.status(400).json({ error: "Invalid status value" });
     }
-
+  
     try {
-      // Find the lead by ID and update the 'type' field
+      // Check if lead has any "commande" type commands
+      const hasCommand = await Commande.exists({ 
+        lead: id, 
+        command_type: "commande" 
+      });
+  
+      // Prevent downgrading a client with existing commands
+      if (hasCommand && statusLead !== "client") {
+        return res.status(400).json({ 
+          error: "Cannot change status - lead has existing commands" 
+        });
+      }
+  
       const updatedLead = await Chat.findByIdAndUpdate(
         id,
-        { type: statusLead }, // Update the 'type' field
-        { new: true } // Return the updated document
+        { type: statusLead },
+        { new: true }
       );
-
-      // If the lead is not found, return an error
+  
       if (!updatedLead) {
         return res.status(404).json({ error: "Lead not found" });
       }
-
-      // Return the updated lead as a response
+  
       res.status(200).json(updatedLead);
     } catch (error) {
       console.error("Error updating lead:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }
-
   static deleteComment = async (req, res) => {
     const { id, commentId } = req.params;
     console.log("Deleting comment:", commentId, "from chat:", id);
@@ -425,6 +467,164 @@ static async searchData(req, res) {
             error: error.message 
         });
     }
+}
+
+
+static async getAllTickets(req, res) {
+  try {
+    const tickets = await Ticket.find()
+      .populate('client', 'nom phone email')
+      .populate('commercial', 'nom prenom');
+    res.send(tickets);
+  } catch (error) {
+    res.status(500).send();
+  }
+}
+
+static async createTicket(req, res) {
+  try {
+    const { title, description, clientId, priority, createdBy } = req.body;
+    
+    // Validate required fields
+    if (!title || !description || !clientId) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Title, description, and client ID are required' 
+      });
+    }
+
+    // Create the ticket
+    const ticket = new Ticket({
+      title,
+      description,
+      client: clientId,
+      commercial: createdBy.role === 'Commercial' ? createdBy.id : null,
+      createdBy: {
+        user: createdBy.id,
+        userType: createdBy.role,
+        name: createdBy.name
+      },
+      priority: priority || 'medium',
+      status: 'open'
+    });
+
+    // Save the ticket
+    await ticket.save();
+
+    // Add ticket reference to the client
+    await Chat.findByIdAndUpdate(clientId, {
+      $push: { tickets: ticket._id }
+    });
+
+    // Add ticket reference to the commercial if applicable
+    if (createdBy.role === 'Commercial') {
+      await Commercial.findByIdAndUpdate(createdBy.id, {
+        $push: { tickets: ticket._id }
+      });
+    }
+
+    // Populate the response
+    const populatedTicket = await Ticket.findById(ticket._id)
+      .populate('client', 'nom phone email')
+      .populate('commercial', 'prenom nom');
+
+    return res.status(201).json({
+      success: true,
+      message: 'Ticket created successfully',
+      data: populatedTicket
+    });
+
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Server error while creating ticket',
+      error: error.message 
+    });
+  }
+}
+
+
+// static async updateTicket(req, res) {
+//   const updates = req.body;
+  
+//   try {
+//     const ticket = await Ticket.findByIdAndUpdate(req.params.id, updates, { new: true });
+    
+//     if (updates.status === 'closed') {
+//       ticket.closedAt = new Date();
+//       ticket.closedBy = req.user._id;
+//       await ticket.save();
+//     }
+    
+//     res.send(ticket);
+//   } catch (error) {
+//     res.status(400).send(error);
+//   }
+// }
+static async updateTicket(req, res) {
+  try {
+    const updates = {
+      status: req.body.status
+    };
+    
+    if (req.body.status === 'closed') {
+      updates.closedAt = new Date();
+      updates.closedBy = req.userId;; 
+    }
+    
+    const ticket = await Ticket.findByIdAndUpdate(
+      req.params.id, 
+      updates, 
+      { new: true }
+    );
+    
+    res.send(ticket);
+  } catch (error) {
+    console.error("Ticket update error:", error);
+    res.status(400).send({ error: error.message });
+  }
+}
+
+
+static async getTicketById(req, res) {
+  try {
+    const ticket = await Ticket.findById(req.params.id)
+      .populate('client')
+      .populate('commercial')
+      .populate('comments.postedBy').populate('closedBy', 'name email')
+      .populate('createdBy.user', 'name email');
+    res.send(ticket);
+  } catch (error) {
+    res.status(500).send();
+  }
+}
+
+static async deleteTicket(req, res) {
+  try {
+    const ticket = await Ticket.findByIdAndDelete(req.params.id);
+    
+    if (!ticket) {
+      return res.status(404).json({ message: 'Ticket not found' });
+    }
+
+    // Remove ticket reference from client
+    await Chat.findByIdAndUpdate(ticket.client, {
+      $pull: { tickets: ticket._id }
+    });
+
+    // Remove ticket reference from commercial if applicable
+    if (ticket.commercial) {
+      await Commercial.findByIdAndUpdate(ticket.commercial, {
+        $pull: { tickets: ticket._id }
+      });
+    }
+
+    res.status(200).json({ message: 'Ticket deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting ticket:', error);
+    res.status(500).json({ message: 'Server error while deleting ticket' });
+  }
 }
 }
 

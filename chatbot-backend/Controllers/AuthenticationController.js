@@ -193,37 +193,83 @@ class AuthenticationController {
   };
 
   // Mettre à jour un commercial par son ID
+  // static updateCommercialById = async (req, res) => {
+  //   const { id } = req.params;
+  //   const { nom, prenom, email, phone, password, status } = req.body;
+  //   console.log("Update request body:", req.body);
+
+  //   try {
+  //     const updateData = { nom, prenom, email, phone };
+  //     if (password) {
+  //       const hashedPassword = await bcrypt.hash(password, 10);
+  //       updateData.password = hashedPassword;
+  //     }
+
+  //     const updatedCommercial = await CommercialSchema.findByIdAndUpdate(
+  //       id,
+  //       updateData,
+  //       { status, lastActivity: new Date() },
+  //       { new: true }
+  //     );
+  //     console.log("Updated commercial:", updatedCommercial);
+
+  //     if (!updatedCommercial) {
+  //       return res.status(404).json({ message: "Commercial non trouvé" });
+  //     }
+
+  //     res.status(200).json(updatedCommercial);
+  //   } catch (error) {
+  //     res
+  //       .status(400)
+  //       .json({
+  //         message: "Erreur lors de la mise à jour du commercial",
+  //         details: error.message,
+  //       });
+  //   }
+  // };
   static updateCommercialById = async (req, res) => {
     const { id } = req.params;
-    const { nom, prenom, email, phone, password } = req.body;
+    const { nom, prenom, email, phone, password, status } = req.body;
+    console.log("Update request body:", req.body);
 
     try {
-      const updateData = { nom, prenom, email, phone };
-      if (password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        updateData.password = hashedPassword;
-      }
+        // Prepare update data
+        const updateData = { 
+            nom, 
+            prenom, 
+            email, 
+            phone,
+            status,  // Include status in the update
+            lastActivity: new Date()  // Always update lastActivity
+        };
 
-      const updatedCommercial = await CommercialSchema.findByIdAndUpdate(
-        id,
-        updateData,
-        { new: true }
-      );
+        // Only update password if it's provided
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            updateData.password = hashedPassword;
+        }
 
-      if (!updatedCommercial) {
-        return res.status(404).json({ message: "Commercial non trouvé" });
-      }
+        // Correct usage of findByIdAndUpdate
+        const updatedCommercial = await CommercialSchema.findByIdAndUpdate(
+            id,
+            updateData,  // Single object containing all updates
+            { new: true, runValidators: true }  // Options object
+        );
+        
+        console.log("Updated commercial:", updatedCommercial);
 
-      res.status(200).json(updatedCommercial);
+        if (!updatedCommercial) {
+            return res.status(404).json({ message: "Commercial non trouvé" });
+        }
+
+        res.status(200).json(updatedCommercial);
     } catch (error) {
-      res
-        .status(400)
-        .json({
-          message: "Erreur lors de la mise à jour du commercial",
-          details: error.message,
+        res.status(400).json({
+            message: "Erreur lors de la mise à jour du commercial",
+            details: error.message,
         });
     }
-  };
+};
 
   // Supprimer un commercial par son ID
   static deleteCommercialById = async (req, res) => {
