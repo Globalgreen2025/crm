@@ -22,8 +22,10 @@ import { useNavigate } from "react-router-dom";
 import {
   DeleteOutlined,
   CloseOutlined,
+  InfoCircleOutlined
 } from "@ant-design/icons";
 import { jwtDecode } from "jwt-decode";
+import logo from "../assets/logo.jpeg"
 
 const { Option } = Select;
 
@@ -47,6 +49,7 @@ const Leads = () => {
   const TVA = 10;
   const [produits, setProduits] = useState([]);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [previewImage, setPreviewImage] = useState(false);
 
   useEffect(() => {
     const fetchProduits = async () => {
@@ -992,9 +995,26 @@ const Leads = () => {
             </div>
 
             {/* Forfait - Full width */}
-            <Form.Item label="Forfait (€)" name="forfait" className="w-full">
+            {/* <Form.Item label="Forfait (€)" name="forfait" className="w-full">
               <Input type="number" step="0.01" min={0} className="w-full" />
-            </Form.Item>
+            </Form.Item> */}
+            <Form.Item 
+      label={
+        <div className="flex items-center gap-2">
+          <span>Forfait (€)</span>
+          <Button 
+            type="text" 
+            icon={<InfoCircleOutlined />}
+            onClick={() => setPreviewImage(true)}
+            className="p-0 h-4"
+          />
+        </div>
+      } 
+      name="forfait" 
+      className="w-full"
+    >
+      <Input type="number" step="0.01" min={0} className="w-full" />
+    </Form.Item>
           </div>
 
           <Form.Item
@@ -1067,6 +1087,23 @@ const Leads = () => {
             </Button>
           </div>
         </Form>
+        {previewImage && (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="relative max-w-full max-h-full">
+        <img 
+          src={logo} // Use your logo or any other image
+          alt="Forfait details" 
+          className="max-h-[90vh] max-w-full object-contain"
+        />
+        <Button
+          type="text"
+          icon={<CloseOutlined />}
+          onClick={() => setPreviewImage(false)}
+          className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
+        />
+      </div>
+    </div>
+  )}
       </Modal>
     </section>
   );

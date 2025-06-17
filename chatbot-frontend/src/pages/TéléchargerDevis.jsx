@@ -20,7 +20,8 @@ import {
   ExclamationCircleOutlined,
   FilePdfOutlined,
   SendOutlined,
-  CloseOutlined
+  CloseOutlined,
+  InfoCircleOutlined
 } from "@ant-design/icons";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
@@ -52,6 +53,7 @@ const AllDevis = () => {
   const decodedUser = token ? jwtDecode(token) : null;
   // const userLoged = decodedUser?.userId;
   const userRole = decodedUser?.role;
+   const [previewImage, setPreviewImage] = useState(false);
 
 
   useEffect(() => {
@@ -1362,9 +1364,26 @@ const AllDevis = () => {
                   </div>
       
                   {/* Forfait - Full width */}
-                  <Form.Item label="Forfait (€)" name="forfait" className="w-full">
+                  {/* <Form.Item label="Forfait (€)" name="forfait" className="w-full">
                     <Input type="number" step="0.01" min={0} className="w-full" />
-                  </Form.Item>
+                  </Form.Item> */}
+                   <Form.Item 
+                        label={
+                          <div className="flex items-center gap-2">
+                            <span>Forfait (€)</span>
+                            <Button 
+                              type="text" 
+                              icon={<InfoCircleOutlined />}
+                              onClick={() => setPreviewImage(true)}
+                              className="p-0 h-4"
+                            />
+                          </div>
+                        } 
+                        name="forfait" 
+                        className="w-full"
+                      >
+                        <Input type="number" step="0.01" min={0} className="w-full" />
+                      </Form.Item>
                 </div>
       
                 <Form.Item
@@ -1437,6 +1456,23 @@ const AllDevis = () => {
                   </Button>
                 </div>
               </Form>
+              {previewImage && (
+                  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div className="relative max-w-full max-h-full">
+                      <img 
+                        src={logo} // Use your logo or any other image
+                        alt="Forfait details" 
+                        className="max-h-[90vh] max-w-full object-contain"
+                      />
+                      <Button
+                        type="text"
+                        icon={<CloseOutlined />}
+                        onClick={() => setPreviewImage(false)}
+                        className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
+                      />
+                    </div>
+                  </div>
+                )}
             </Modal>
     </div>
   );

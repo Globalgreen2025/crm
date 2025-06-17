@@ -31,6 +31,7 @@ import AllCommands from "./pages/TéléchargerContract";
 import Facture from "./components/Facture";
 import ImportLeads from "./pages/ImportLeads";
 import TicketDetail from "./pages/Admin/TicketDetail";
+import Fournisseurs from "./pages/Fournisseurs";
 
 
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
@@ -68,6 +69,7 @@ function App() {
             <Route path='/tickets' element={<Facture/>} />
             <Route path="/reclamations/:id" element={<TicketDetail />} />
             <Route path="/Contrats" element={<AllCommands />} />
+            <Route path="/fournisseurs" element={<Fournisseurs />} />
             <Route path="/import-leads" element={<ImportLeads />} />
             {/* <Route path="/lead/:id" element={<LeadDetailsPage />}/> */}
             <Route path="/affect-leads" element={<AffectuerLead />} />

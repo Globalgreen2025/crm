@@ -12,12 +12,12 @@ import {
   Tag,
   Input,
 } from "antd";
-import {
-  ShoppingCartOutlined,
-} from "@ant-design/icons";
-import {  useParams } from "react-router-dom";
+import {InfoCircleOutlined, ShoppingCartOutlined, CloseOutlined } from "@ant-design/icons";
+import { useParams } from "react-router-dom";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
+import logo from "../assets/logo.jpeg"
+
 
 const Produits = ({ onCartChange }) => {
   const { id } = useParams();
@@ -29,8 +29,10 @@ const Produits = ({ onCartChange }) => {
   const [searchReference, setSearchReference] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categories, setCategories] = useState([]);
-
- 
+  const [previewImage, setPreviewImage] = useState({
+    visible: false,
+    url: '', 
+  });
 
   useEffect(() => {
     const fetchProduits = async () => {
@@ -44,9 +46,11 @@ const Produits = ({ onCartChange }) => {
         const allProduits = response.data;
         setProduits(allProduits);
         setFilteredProduits(allProduits);
-        
+
         // Extract unique categories
-        const uniqueCategories = [...new Set(allProduits.map(p => p.category))];
+        const uniqueCategories = [
+          ...new Set(allProduits.map((p) => p.category)),
+        ];
         setCategories(uniqueCategories);
       } catch (error) {
         console.error("Error fetching produits:", error);
@@ -59,23 +63,23 @@ const Produits = ({ onCartChange }) => {
   useEffect(() => {
     // Filter products based on search criteria
     let results = produits;
-    
+
     if (searchText) {
-      results = results.filter(item =>
+      results = results.filter((item) =>
         item.title.toLowerCase().includes(searchText.toLowerCase())
       );
     }
-    
+
     if (searchReference) {
-      results = results.filter(item =>
+      results = results.filter((item) =>
         item.reference.toLowerCase().includes(searchReference.toLowerCase())
       );
     }
-    
+
     if (selectedCategory) {
-      results = results.filter(item => item.category === selectedCategory);
+      results = results.filter((item) => item.category === selectedCategory);
     }
-    
+
     setFilteredProduits(results);
   }, [searchText, searchReference, selectedCategory, produits]);
 
@@ -398,34 +402,44 @@ const Produits = ({ onCartChange }) => {
       ),
       align: "right",
     },
+    // {
+    //   title: "Forfait",
+    //   dataIndex: "forfait",
+    //   key: "forfait",
+    //   render: (text, record) => (
+    //     <Input
+    //       type="number"
+    //       defaultValue={text || ""}
+    //       onChange={(e) => handleForfaitChange(e.target.value, record._id)}
+    //       style={{ width: 100 }}
+    //     />
+    //   ),
+    //   align: "right",
+    // },
     {
       title: "Forfait",
       dataIndex: "forfait",
       key: "forfait",
       render: (text, record) => (
-        <Input
-          type="number"
-          defaultValue={text || ""}
-          onChange={(e) => handleForfaitChange(e.target.value, record._id)}
-          style={{ width: 100 }}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            defaultValue={text || ""}
+            onChange={(e) => handleForfaitChange(e.target.value, record._id)}
+            style={{ width: 100 }}
+          />
+           <Button 
+            type="text" 
+            icon={<InfoCircleOutlined />}
+            onClick={() => setPreviewImage({
+              visible: true,
+              imgSrc: logo // Using your imported logo
+            })}
+          />
+        </div>
       ),
       align: "right",
     },
-    // {
-    //   title: "Prix de vente",
-    //   dataIndex: "prixVente",
-    //   key: "prixVente",
-    //   render: (text) => (text ? `${text}€` : "-"),
-    //   align: "right",
-    // },
-    // {
-    //   title: "Forfait",
-    //   dataIndex: "forfait",
-    //   key: "forfait",
-    //   render: (text) => (text ? `${text}€` : "-"),
-    //   align: "right",
-    // },
     {
       title: "Action",
       key: "action",
@@ -469,35 +483,35 @@ const Produits = ({ onCartChange }) => {
             <Input
               placeholder="Rechercher par titre"
               allowClear
-              onChange={e => setSearchText(e.target.value)}
-              style={{ width: '100%' }}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: "100%" }}
             />
           </Col>
           <Col span={8}>
             <Input
               placeholder="Rechercher par référence"
               allowClear
-              onChange={e => setSearchReference(e.target.value)}
-              style={{ width: '100%' }}
+              onChange={(e) => setSearchReference(e.target.value)}
+              style={{ width: "100%" }}
             />
           </Col>
           <Col span={8}>
             <Select
               placeholder="Filtrer par catégorie"
               allowClear
-              style={{ width: '100%' }}
-              onChange={value => setSelectedCategory(value)}
-              options={categories.map(cat => ({
+              style={{ width: "100%" }}
+              onChange={(value) => setSelectedCategory(value)}
+              options={categories.map((cat) => ({
                 value: cat,
-                label: cat
+                label: cat,
               }))}
             />
           </Col>
         </Row>
         <Row style={{ marginTop: 10 }}>
           <Col>
-            <Button 
-              type="link" 
+            <Button
+              type="link"
               onClick={() => {
                 setSearchText("");
                 setSearchReference("");
@@ -509,6 +523,24 @@ const Produits = ({ onCartChange }) => {
           </Col>
         </Row>
       </Card>
+
+      {previewImage.visible && (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div className="relative max-w-full max-h-full">
+        <img 
+              src={previewImage.imgSrc} 
+              alt="Forfait details" 
+              className="max-h-[90vh] max-w-full object-contain"
+            />
+          <Button
+            type="text"
+            icon={<CloseOutlined />}
+            onClick={() => setPreviewImage({...previewImage, visible: false})}
+            className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
+          />
+        </div>
+      </div>
+    )}
 
       {/* Products Table */}
       <Table
