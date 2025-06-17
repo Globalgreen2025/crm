@@ -949,7 +949,7 @@ const AllDevis = () => {
             </div>
           ) : record.reference ? (
             <Tag color={stringToColor(record.reference)} className="text-xs font-medium">
-              {record.reference}
+              {record.reference} <span className="font-bold">(x{record.quantite})</span>
             </Tag>
           ) : null}
         </div>
