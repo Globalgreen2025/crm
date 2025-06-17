@@ -64,7 +64,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors({
   origin: [
     "https://crm-sales-self.vercel.app",
-    "globalgreen.vercel.app", 
+    "https://globalgreen.vercel.app", 
     "https://solar-simulator-eta.vercel.app", 
     "http://localhost:5174"
   ],
