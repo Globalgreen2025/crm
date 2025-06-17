@@ -593,7 +593,7 @@ const LeadDetailsPage = () => {
                 />
               </div>
             </TabPane>
-            <TabPane tab="Devis à valider" key="7" forceRender>
+            <TabPane tab="Devis" key="7" forceRender>
               <div className="space-y-4">
                 <Devis
                   onValidate={handleRefreshCommands}

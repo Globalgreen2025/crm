@@ -33,6 +33,10 @@ const CommandeSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  forfait: {
+    type: Number,
+    required: false,
+  },
   numCommand: {
     type: String,
     required: true,
@@ -88,6 +92,21 @@ const CommandeSchema = new mongoose.Schema({
     required: false, // If this is optional, you can make it not required
   },
 });
+
+const handleCommandTypeChange = async (doc) => {
+  if (doc.command_type === 'commande') {
+    try {
+      await mongoose.model('Chat').findByIdAndUpdate(
+        doc.lead,
+        { $set: { type: 'client' } },
+        { new: true }
+      );
+      console.log(`Updated lead ${doc.lead} to client status`);
+    } catch (error) {
+      console.error('Error updating lead status:', error);
+    }
+  }
+};
 
 CommandeSchema.post('findOneAndUpdate', async function(doc) {
   if (doc) {

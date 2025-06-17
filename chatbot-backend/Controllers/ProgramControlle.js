@@ -288,6 +288,7 @@ static async createCommand(req, res) {
       address,
       numCommand,
       category,
+      forfait,
       title,
       reference,
       items
@@ -311,6 +312,7 @@ static async createCommand(req, res) {
       email,
       phone,
       siret,
+      forfait,
       codepostal,
       raissociale,
       ville,

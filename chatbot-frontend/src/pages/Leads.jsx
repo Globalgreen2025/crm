@@ -140,12 +140,13 @@ const Leads = () => {
         totalTVA: formValues.totalTVA || 0,
         totalTTC: formValues.totalTTC || 0,
         quantite: formValues.quantite || 1,
+        forfait: formValues.forfait,
         prixUnitaire: formValues.prixUnitaire || 0,
         session: decodedToken?.userId || decodedToken?.commercialId,
         leadId: selectedLeadId,
         commercialName,
       };
-      console.log("formData", formData);
+      console.log("formDataaaa", formData);
 
       const response = await axios.post("/command", formData);
       message.success("Devis ajoutée avec succès !");
@@ -255,7 +256,7 @@ const Leads = () => {
     const tvaRate = parseFloat(form.getFieldValue("TVA")) || 0;
 
     const baseHT = qty * price;
-    const totalHT = baseHT + forfait; // Include forfait in HT
+    const totalHT = baseHT + forfait;
     const totalTVA = totalHT * (tvaRate / 100);
     const totalTTC = totalHT + totalTVA;
 
@@ -1091,7 +1092,7 @@ const Leads = () => {
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div className="relative max-w-full max-h-full">
         <img 
-          src={logo} // Use your logo or any other image
+          src={logo}
           alt="Forfait details" 
           className="max-h-[90vh] max-w-full object-contain"
         />

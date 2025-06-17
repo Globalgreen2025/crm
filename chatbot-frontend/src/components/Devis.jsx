@@ -117,6 +117,27 @@ const Devis = ({ onValidate, shouldRefresh }) => {
     }
   }, [shouldRefresh, id]);
 
+  function stringToColor(str) {
+    // List of distinct Ant Design tag colors
+    const colors = [
+      'magenta', 'red', 'volcano', 'orange', 'gold',
+      'lime', 'green', 'cyan', 'blue', 'geekblue', 'purple'
+    ];
+    
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    return colors[Math.abs(hash) % colors.length];
+  }
+
+
+  const safeRender = (value, fallback = "N/A") => {
+    return value !== undefined && value !== null ? value : fallback;
+  };
+
   const columns = [
     {
       title: "Référence",
@@ -147,30 +168,125 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       render: (text) => `${text}`, // Formatting the price
     },
 
-    {
-      title: "Prix HT",
-      dataIndex: "totalHT",
-      key: "totalHT",
-      render: (text) => `${text} €`, // Formatting the price
-    },
-    {
-      title: "TVA (10%)",
-      dataIndex: "totalTVA",
-      key: "totalTVA",
-      render: (text) => `${text} €`, // Formatting the TVA
-    },
+    // {
+    //   title: "Prix HT",
+    //   dataIndex: "totalHT",
+    //   key: "totalHT",
+    //   render: (text) => `${text} €`, // Formatting the price
+    // },
+    // {
+    //   title: "TVA (10%)",
+    //   dataIndex: "totalTVA",
+    //   key: "totalTVA",
+    //   render: (text) => `${text} €`, // Formatting the TVA
+    // },
     // {
     //   title: 'Marge',
     //   dataIndex: 'marge',
     //   key: 'marge',
     //   render: (text) => `${text} €`,
     // },
-    {
-      title: "Prix TTC",
-      dataIndex: "totalTTC",
-      key: "totalTTC",
-      render: (text) => `${text} €`, // Formatting the price
-    },
+    // {
+    //   title: "Prix TTC",
+    //   dataIndex: "totalTTC",
+    //   key: "totalTTC",
+    //   render: (text) => `${text} €`, // Formatting the price
+    // },
+        {
+              title: "Forfait",
+              dataIndex: "forfait",
+              key: "forfait",
+              render: (text, record) => (
+                <div className="flex flex-col gap-1">
+                  {/* Main Forfait Tag - Only shows if value exists */}
+                  {text && parseFloat(text) !== 0 && (
+                    <Tag color="#f50" className="text-xs font-medium">
+                      Forfait: {parseFloat(text).toFixed(2)} €
+                    </Tag>
+                  )}
+            
+                  {/* Item-Level Forfaits - Only shows if items with forfait exist */}
+                  {record.items?.some(item => item.forfait) && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {record.items
+                        .filter(item => item.forfait)
+                        .map((item, index) => (
+                          <Tag
+                            key={`forfait-${index}`}
+                            color="#f50"
+                            className="text-xs font-medium"
+                          >
+                            Forfait: {parseFloat(item.forfait || 0).toFixed(2)} €
+                            {item.quantite > 1 && (
+                              <span className="font-bold ml-1">(x{item.quantite})</span>
+                            )}
+                          </Tag>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              ),
+            },
+            {
+              title: "Total HT",
+              dataIndex: "totalHT",
+              key: "totalHT",
+              render: (text, record) => (
+                <div className="text-right">
+                  <div>{`${safeRender(text, "0")} €`}</div>
+                  {record.items?.length > 0 ? (
+                    <div className="text-xs text-gray-500">
+                      {record.items.map(item => item.montantHT + '€').join(' + ')}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500">
+                      {safeRender(text, "0")} € 
+                    </div>
+                  )}
+                </div>
+              ),
+              sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
+            },
+            {
+              title: "Total TVA",
+              dataIndex: "totalTVA",
+              key: "totalTVA",
+              render: (text, record) => (
+                <div className="text-right">
+                  <div>{`${safeRender(text, "0")} €`}</div>
+                  {record.items?.length > 0 ? (
+                    <div className="text-xs text-gray-500">
+                      {record.items.map(item => item.montantTVA + '€').join(' + ')}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500">
+                      {safeRender(text, "0")} € 
+                    </div>
+                  )}
+                </div>
+              ),
+              sorter: (a, b) => (a.totalTVA || 0) - (b.totalTVA || 0),
+            },
+            {
+              title: "Prix Total TTC",
+              dataIndex: "totalTTC",
+              key: "totalTTC",
+              render: (text, record) => (
+                <div className="text-right">
+                  <div className="font-medium">{`${safeRender(text, "0")} €`}</div>
+                  {record.items?.length > 0 ? (
+                    <div className="text-xs text-gray-500">
+                      {record.items.map(item => item.montantTTC + '€').join(' + ')}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500">
+                      {safeRender(text, "0")} € 
+                    </div>
+                  )}
+                </div>
+              ),
+              sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
+            },
     {
       title: "Date de Création",
       dataIndex: "date",

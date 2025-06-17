@@ -66,7 +66,7 @@ app.use(cors({
     "https://crm-sales-self.vercel.app",
     "https://globalgreen.vercel.app", 
     "https://solar-simulator-eta.vercel.app", 
-    "http://localhost:5174"
+    "http://localhost:5173"
   ],
   credentials: true,
 }));
