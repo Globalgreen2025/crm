@@ -465,7 +465,7 @@ console.log('id', id)
 static async sendDevisEmail(req, res) {
   try {
     const { email, pdf, commandNum, phone, clientName,
-      societeName, code, description } = req.body;
+       title, description } = req.body;
 
    
 
@@ -490,11 +490,11 @@ static async sendDevisEmail(req, res) {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: `Envoi de votre devis – ${code}`,
+      subject: `Envoi de votre devis – ${title || 'Devis'}`,
       html: `
         <p>Bonjour ${clientName},</p>
       
-        <p>Comme convenu, vous trouverez ci-joint le devis correspondant à la prestation suivante : <strong>${description}</strong>.</p>
+        <p>Comme convenu, vous trouverez ci-joint le devis correspondant à la prestation suivante : <strong>${title}</strong>.</p>
       
         <p>Ce devis détaille l’ensemble des prestations proposées ainsi que les conditions tarifaires. N’hésitez pas à me faire part de vos questions ou remarques si certains points nécessitent des précisions.</p>
       
@@ -504,7 +504,6 @@ static async sendDevisEmail(req, res) {
         Bien cordialement,</p>
       
         <p>${clientName}<br/>
-        ${societeName}<br/>
         ${phone}<br/>
         ${email}</p>
       `,

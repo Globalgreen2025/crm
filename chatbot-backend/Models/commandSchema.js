@@ -59,6 +59,10 @@ const CommandeSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  prixUnitaire: {
+    type: Number,
+    required: false,
+  },
   totalTTC: {
     type: Number,
     required: true,

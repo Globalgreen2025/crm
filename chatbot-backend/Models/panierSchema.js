@@ -56,11 +56,11 @@ const panierSchema = new mongoose.Schema({
     type: String,
     // required: true,
   },
-  // session: {
-  //   type: mongoose.Schema.Types.ObjectId,
-  //   ref: "Admin",
-  //   required: false,
-  // },
+  session: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Admin",
+    required: false,
+  },
   session: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Commercial", // Referring to the Commercial model

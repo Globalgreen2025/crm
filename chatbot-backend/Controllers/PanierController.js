@@ -153,6 +153,7 @@ class PanierController {
 static async createPanier(req, res) {
   try {
     const { produitId, quantite, total: prixVente, forfait, leadId, userId, userType, userTypeRef } = req.body;
+    console.log("Creating panier with data:", req.body);
 
     // Validate user type
     if (!['admin', 'commercial'].includes(userType)) {
@@ -167,31 +168,31 @@ static async createPanier(req, res) {
       return res.status(400).json({ message: "Invalid product price" });
     }
 
-    // Check for existing item for this user
-    const existingPanierItem = await Panier.findOne({ 
-      produit: produitId,
-      userId: userId,
-      userType: userType
-    });
+    // // Check for existing item for this user
+    // const existingPanierItem = await Panier.findOne({ 
+    //   produit: produitId,
+    //   userId: userId,
+    //   userType: userType
+    // });
 
-    if (existingPanierItem) {
-      existingPanierItem.quantite += quantite;
+    // if (existingPanierItem) {
+    //   existingPanierItem.quantite += quantite;
       
-      const baseHT = existingPanierItem.forfait 
-        ? parseFloat(existingPanierItem.total) + parseFloat(existingPanierItem.forfait)
-        : parseFloat(existingPanierItem.total);
+    //   const baseHT = existingPanierItem.forfait 
+    //     ? parseFloat(existingPanierItem.total) + parseFloat(existingPanierItem.forfait)
+    //     : parseFloat(existingPanierItem.total);
         
-      existingPanierItem.montantHT = existingPanierItem.quantite * baseHT;
-      existingPanierItem.montantTVA = (existingPanierItem.montantHT * tva) / 100;
-      existingPanierItem.montantTTC = existingPanierItem.montantHT + existingPanierItem.montantTVA;
+    //   existingPanierItem.montantHT = existingPanierItem.quantite * baseHT;
+    //   existingPanierItem.montantTVA = (existingPanierItem.montantHT * tva) / 100;
+    //   existingPanierItem.montantTTC = existingPanierItem.montantHT + existingPanierItem.montantTVA;
       
-      await existingPanierItem.save();
-      return res.status(200).json(existingPanierItem);
-    }
+    //   await existingPanierItem.save();
+    //   return res.status(200).json(existingPanierItem);
+    // }
 
     // Calculate amounts for new item
-    const baseHT = forfait ? parseFloat(prixVente) + parseFloat(forfait) : parseFloat(prixVente);
-    const montantHT = baseHT * quantite;
+    // const baseHT = forfait ? parseFloat(prixVente) + parseFloat(forfait) : parseFloat(prixVente);
+    const montantHT = prixVente * quantite;
     const montantTVA = (montantHT * tva) / 100;
     const montantTTC = montantHT + montantTVA;
 
@@ -269,7 +270,7 @@ static async createPanier(req, res) {
       }
 
       panierItem.quantite = quantite; // Set the quantity to 0 (or whatever value)
-      panierItem.montantHT = panierItem.quantite * panierItem.  total;
+      panierItem.montantHT = panierItem.quantite * panierItem.total;
       panierItem.montantTVA = (panierItem.montantHT * panierItem.tva) / 100;
       panierItem.montantTTC = panierItem.montantHT + panierItem.montantTVA;
       // panierItem.marge = panierItem.quantite * panierItem.marge;
