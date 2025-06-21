@@ -373,7 +373,7 @@ const CreateCommand = () => {
             reference: item.reference,
             category: item.category,
             quantite: item.quantite, // Individual quantity
-            prixUnitaire: item.prix,
+            prixUnitaire: item.total,
             montantHT: item.montantHT,
             montantTVA: item.montantTVA,
             montantTTC: item.montantTTC,

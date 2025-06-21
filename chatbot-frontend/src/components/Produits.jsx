@@ -232,6 +232,7 @@ const Produits = ({ onCartChange }) => {
       const backendResponse = await axios.get(`/panier/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log("Backend cart data:", backendResponse.data);
 
       const currentCart = JSON.parse(localStorage.getItem("panierItems")) || [];
 

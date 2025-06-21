@@ -256,7 +256,7 @@ const Leads = () => {
     const tvaRate = parseFloat(form.getFieldValue("TVA")) || 0;
 
     const baseHT = qty * price;
-    const totalHT = baseHT + forfait;
+    const totalHT = baseHT;
     const totalTVA = totalHT * (tvaRate / 100);
     const totalTTC = totalHT + totalTVA;
 

@@ -374,10 +374,10 @@ const AllCommands = () => {
             icon={<EditOutlined />}
             onClick={(e) => handleEdit(record, e)}
           />
-          <Button
+          {/* <Button
             icon={<FilePdfOutlined />}
             onClick={(e) => handleDownload(record._id, e)}
-          />
+          /> */}
           <Button
             danger
             icon={<DeleteOutlined />}

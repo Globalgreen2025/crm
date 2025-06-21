@@ -146,8 +146,8 @@ const Panier = ({ setCartQuantity, refreshTrigger }) => {
       const updatedItems = panierItems.map((item) => {
         if (item._id === panierId) {
           const unitPrice = item.total; // Use the base price
-          const forfait = item.forfait || 0;
-          const baseHT = parseFloat(unitPrice) + parseFloat(forfait);
+          // const forfait = item.forfait || 0;
+          const baseHT = parseFloat(unitPrice);
           const montantHT = parseFloat((baseHT * newQuantity).toFixed(2));
           const montantTVA = parseFloat((montantHT * (item.tva / 100)).toFixed(2));
           const montantTTC = parseFloat((montantHT + montantTVA).toFixed(2));
@@ -315,6 +315,12 @@ const Panier = ({ setCartQuantity, refreshTrigger }) => {
     //   dataIndex: "montantTTC",
     //   key: "montantTTC",
     // },
+    {
+      title: "Forfait",
+      dataIndex: "forfait",
+      key: "forfait",
+      render: (value) => `${parseFloat(value || 0).toFixed(2)} €`,
+    },
     {
       title: "Montant HT",
       dataIndex: "montantHT",
