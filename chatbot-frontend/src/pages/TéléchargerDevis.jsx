@@ -28,7 +28,7 @@ import { jwtDecode } from "jwt-decode";
 import moment from "moment";
 import { jsPDF } from "jspdf";
 import logo from "../assets/logo.jpeg";
-import logorge from "../assets/logorge.png";
+import logorge from "../assets/logorge.PNG";
 
 const { confirm } = Modal;
 
@@ -802,8 +802,7 @@ tableData.forEach((row, rowIndex) => {
       doc.setFontSize(9);
       doc.setFont(undefined, "bold");
       const textY = startY + HEADER_ROW_HEIGHT / 2 + 1; // Better vertical centering
-      doc.text(
-        `Descriptif des travaux (Page ${pageNum}/2)`,
+      doc.text('Descriptif des travaux (Page 2/2)',
         DESC_X + DESC_WIDTH / 2,
         textY,
         { align: "center" }
