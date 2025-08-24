@@ -417,7 +417,7 @@ import {
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
-import logo from "../assets/logo.jpeg";
+// import logo from "../assets/logo.jpeg";
 
 const Produits = ({ onCartChange }) => {
   const { id } = useParams();
@@ -675,7 +675,7 @@ const Produits = ({ onCartChange }) => {
               readOnly
               style={{ width: 100, backgroundColor: '#f5f5f5' }}
             />
-            <Button
+            {/* <Button
               type="text"
               icon={<InfoCircleOutlined />}
               onClick={() =>
@@ -684,7 +684,7 @@ const Produits = ({ onCartChange }) => {
                   imgSrc: logo,
                 })
               }
-            />
+            /> */}
           </div>
         );
       },
