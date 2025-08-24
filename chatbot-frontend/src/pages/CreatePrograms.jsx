@@ -405,6 +405,7 @@ const CreatePrograms = () => {
     total: 0,
     surface: "",
     taillePrixLabel: "",
+    prixVente: "",
   });
 
   useEffect(() => {
@@ -427,6 +428,7 @@ const CreatePrograms = () => {
         reference: "",
         title: "",
         description: "",
+        prixVente: "",
       });
     }
   }, [id, form]);
@@ -453,7 +455,8 @@ const CreatePrograms = () => {
         userId,
         // coutAchat: parseFloat(formData.coutAchat) || 0,
         // fraisGestion: parseFloat(formData.fraisGestion) || 0,
-        total: parseFloat(formData.total) || 0
+        total: parseFloat(formData.total) || 0,
+        prixVente: parseFloat(formData.prixVente) || 0,
       };
 
       if (id) {
@@ -546,6 +549,20 @@ const CreatePrograms = () => {
             onChange={handleInputChange}
             rows={4}
             placeholder="Description détaillée du produit"
+          />
+        </Form.Item>
+        <Form.Item
+          label="Prix de vente (€)"
+          name="prixVente"
+          rules={[{ required: true, message: "Veuillez entrer le prix de vente!" }]}
+        >
+          <Input
+            type="number"
+            name="prixVente"
+            value={formData.prixVente}
+            onChange={handleInputChange}
+            placeholder="Prix de vente en euros"
+            suffix="€"
           />
         </Form.Item>
 

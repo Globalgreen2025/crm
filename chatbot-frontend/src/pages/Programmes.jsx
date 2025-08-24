@@ -177,6 +177,11 @@ const Programmes = () => {
       ),
     },
     {
+      title: "Prix de vente",
+      dataIndex: "prixVente",
+      key: "prixVente",
+    },
+    {
       title: 'TVA',
       dataIndex: 'tva',
       key: 'tva',
