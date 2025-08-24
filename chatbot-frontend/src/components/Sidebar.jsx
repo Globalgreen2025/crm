@@ -107,17 +107,17 @@ const SideBar = () => {
           label: "Mes clients",
           role: ["Admin", "Manager"],
         },
-        {
-          key: "/fournisseurs",
-          icon: (
-            <FontAwesomeIcon
-              icon={faTruck}
-              style={{ fontSize: "12px", marginRight: "2px" }}
-            />
-          ),
-          label: "Mes fournisseurs",
-          role: ["Admin", "Manager"],
-        },
+        // {
+        //   key: "/fournisseurs",
+        //   icon: (
+        //     <FontAwesomeIcon
+        //       icon={faTruck}
+        //       style={{ fontSize: "12px", marginRight: "2px" }}
+        //     />
+        //   ),
+        //   label: "Mes fournisseurs",
+        //   role: ["Admin", "Manager"],
+        // },
         {
           key: "/import-leads",
           icon: (
@@ -154,41 +154,6 @@ const SideBar = () => {
       label: "Mes clients",
       role: "Commercial",
     },
-
-    {
-      key: "/produits",
-      icon: (
-        <FontAwesomeIcon
-          icon={faThLarge}
-          style={{ fontSize: "18px", marginRight: "2px" }}
-        />
-      ),
-      label: "Produits",
-      role: ["Admin", "Manager"],
-    },
-
-    {
-      key: "/CalendrierCommerciale", // Update the key if necessary
-      icon: (
-        <FontAwesomeIcon
-          icon={faCalendarAlt}
-          style={{ fontSize: "18px", marginRight: "2px" }}
-        />
-      ),
-      label: "Calendrier",
-      role: ["Commercial", "Admin"],
-    },
-    {
-      key: "/tickets",
-      icon: (
-        <FontAwesomeIcon
-          icon={faTicket}
-          style={{ fontSize: "18px", marginRight: "2px" }}
-        />
-      ),
-      label: "Mes Réclamations",
-      role: ["Admin", "Commercial"],
-    },
     {
       key: "suivi-ventes",
       icon: (
@@ -224,6 +189,41 @@ const SideBar = () => {
         },
       ],
     },
+    {
+      key: "/produits",
+      icon: (
+        <FontAwesomeIcon
+          icon={faThLarge}
+          style={{ fontSize: "18px", marginRight: "2px" }}
+        />
+      ),
+      label: "Produits",
+      role: ["Admin", "Manager"],
+    },
+
+    {
+      key: "/CalendrierCommerciale", // Update the key if necessary
+      icon: (
+        <FontAwesomeIcon
+          icon={faCalendarAlt}
+          style={{ fontSize: "18px", marginRight: "2px" }}
+        />
+      ),
+      label: "Calendrier",
+      role: ["Commercial", "Admin"],
+    },
+    {
+      key: "/tickets",
+      icon: (
+        <FontAwesomeIcon
+          icon={faTicket}
+          style={{ fontSize: "18px", marginRight: "2px" }}
+        />
+      ),
+      label: "Mes Réclamations",
+      role: ["Admin", "Commercial"],
+    },
+  
     {
       key: "Paramètres",
       icon: (
