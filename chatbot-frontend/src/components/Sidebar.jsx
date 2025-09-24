@@ -166,7 +166,7 @@ const SideBar = () => {
       // role: "Admin",
       children: [
         {
-          key: "/Devis",
+          key: "/Devis-Factures",
           icon: (
             <FontAwesomeIcon
               icon={faFileContract}
@@ -511,15 +511,15 @@ return (
             {"Se déconnecter"}
           </Menu.Item>
         </Menu>
-      {!collapsed && (
+      {/* {!collapsed && (
         <div className="flex justify-start mt-2 py-4 ml-6">
           <img
             src={logo}
             alt="Logo"
-            className="w-12 transition-all rounded-full duration-300"
+            className="object-contain w-full transition-all rounded-full duration-300"
           />
         </div>
-      )}
+      )} */}
     </div>
   </Sider>
 );

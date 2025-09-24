@@ -63,7 +63,7 @@ function App() {
 
 
             <Route path="/CalendrierCommerciale" element={<MyCalendar />} />
-            <Route path="/Devis" element={<TéléchargerDevis />} />
+            <Route path="/Devis-Factures" element={<TéléchargerDevis />} />
             <Route path='/tickets' element={<Facture/>} />
             <Route path="/reclamations/:id" element={<TicketDetail />} />
             <Route path="/Contrats" element={<AllCommands />} />
