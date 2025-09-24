@@ -173,7 +173,7 @@ const SideBar = () => {
               style={{ fontSize: "12px", marginRight: "2px" }}
             />
           ),
-          label: "Devis",
+          label: "Devis & Factures",
           role: ["Admin", "Commercial"],
         },
         // {
