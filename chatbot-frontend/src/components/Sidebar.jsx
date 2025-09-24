@@ -176,17 +176,17 @@ const SideBar = () => {
           label: "Devis",
           role: ["Admin", "Commercial"],
         },
-        {
-          key: "/Contrats",
-          icon: (
-            <FontAwesomeIcon
-              icon={faFileContract}
-              style={{ fontSize: "12px", marginRight: "2px" }}
-            />
-          ),
-          label: "Contrat",
-          role: ["Admin", "Commercial"],
-        },
+        // {
+        //   key: "/Contrats",
+        //   icon: (
+        //     <FontAwesomeIcon
+        //       icon={faFileContract}
+        //       style={{ fontSize: "12px", marginRight: "2px" }}
+        //     />
+        //   ),
+        //   label: "Contrat",
+        //   role: ["Admin", "Commercial"],
+        // },
       ],
     },
     {

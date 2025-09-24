@@ -331,7 +331,7 @@ const Panier = ({ setCartQuantity, refreshTrigger }) => {
       title: "TVA",
       dataIndex: "montantTVA",
       key: "montantTVA",
-      render: (value, record) => `${parseFloat(value || 0).toFixed(2)} € (${record.tva || 20}%)`,
+      render: (value, record) => `${parseFloat(value || 0).toFixed(2)} € (${record.tva || 5.5}%)`,
     },
     {
       title: "Montant TTC",
@@ -374,7 +374,7 @@ const Panier = ({ setCartQuantity, refreshTrigger }) => {
 
       <div style={{ marginTop: "20px", textAlign: "right" }}>
         <h3>Total HT: {totalHT.toFixed(2)} €</h3>
-        <h3>Total TVA (10%): {totalTVA.toFixed(2)} €</h3>
+        <h3>Total TVA (5.5%): {totalTVA.toFixed(2)} €</h3>
         <h3>Total TTC: {totalTTC.toFixed(2)} €</h3>
         <div className="mt-4">
           <Button

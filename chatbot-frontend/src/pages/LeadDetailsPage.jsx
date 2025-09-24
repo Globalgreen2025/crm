@@ -1,14 +1,36 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Tabs, Button, Input, Form, Calendar, Row, Col, Select } from "antd";
+import {
+  Tabs,
+  Button,
+  Input,
+  Form,
+  Calendar,
+  Row,
+  Col,
+  Select,
+  ConfigProvider,
+  Table,
+  Card,
+  Statistic,
+  Timeline,
+  Tag,
+  Progress,
+  Modal,
+} from "antd";
 import { jwtDecode } from "jwt-decode";
-import { DeleteOutlined } from "@ant-design/icons";
 import CalendarEvents from "../components/CalendarEvents";
-import Command from "../components/Command";
+
 import Panier from "./Panier";
 import Produits from "../components/Produits";
 import Devis from "../components/Devis";
+import { LeftOutlined, RightOutlined, DeleteOutlined, FileTextOutlined, CheckCircleOutlined, ClockCircleOutlined  } from "@ant-design/icons";
+import moment from "moment";
+import "moment/locale/fr";
+
+// Set French locale
+moment.locale("fr");
 
 const { TabPane } = Tabs;
 
@@ -28,6 +50,8 @@ const LeadDetailsPage = () => {
   const [cartQuantity, setCartQuantity] = useState(0);
   const [refreshCart, setRefreshCart] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [factures, setFactures] = useState([]);
+  const [loadingFactures, setLoadingFactures] = useState(false);
   const handleRefreshCommands = () => {
     setRefreshCounter((prev) => prev + 1);
   };
@@ -101,6 +125,66 @@ const LeadDetailsPage = () => {
       event_date: date.format("YYYY-MM-DD"), // Set selected date in the form field
     });
   };
+
+  const fetchFactures = async () => {
+    setLoadingFactures(true);
+    try {
+      // 1. Récupérer les commandes principales
+      const commandsResponse = await axios.get(`/commands/lead/${id}`);
+      let commands = commandsResponse.data.data || commandsResponse.data || [];
+      
+      // 2. Pour chaque commande, récupérer le détail des factures
+      const commandsWithInvoiceDetails = await Promise.all(
+        commands.map(async (command) => {
+          try {
+            // Récupérer les factures détaillées pour cette commande
+            const invoicesResponse = await axios.get(`/command/${command._id}/invoices`);
+            const invoices = invoicesResponse.data.data || invoicesResponse.data || [];
+            
+            // Calculer le statut réel basé sur les factures
+            const allInvoicesPaid = invoices.length > 0 && invoices.every(inv => inv.status === 'payée');
+            const someInvoicesPaid = invoices.length > 0 && invoices.some(inv => inv.status === 'payée');
+            
+            // Mettre à jour le statut de paiement
+            let actualPaymentStatus = command.paymentStatus;
+            if (allInvoicesPaid) {
+              actualPaymentStatus = 'paid';
+            } else if (someInvoicesPaid) {
+              actualPaymentStatus = 'partial';
+            }
+            
+            // Calculer le montant payé réel basé sur les factures
+            const actualPaidAmount = invoices
+              .filter(inv => inv.status === 'payée')
+              .reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            
+            return {
+              ...command,
+              invoicesDetail: invoices, // Garder les détails des factures
+              actualPaymentStatus, // Statut calculé
+              actualPaidAmount, // Montant payé calculé
+              isFullyPaid: allInvoicesPaid // Flag pour paiement complet
+            };
+          } catch (error) {
+            console.error(`Error fetching invoices for command ${command._id}:`, error);
+            return command; // Retourner la commande sans modifications en cas d'erreur
+          }
+        })
+      );
+      
+      setFactures(commandsWithInvoiceDetails);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      setFactures([]);
+    } finally {
+      setLoadingFactures(false);
+    }
+  };
+  useEffect(() => {
+    if (activeTab === "8") {
+      fetchFactures();
+    }
+  }, [activeTab, id]);
 
   const handleFormSubmit = async (values) => {
     try {
@@ -266,6 +350,103 @@ const LeadDetailsPage = () => {
       alert("Could not delete comment, please try again.");
     }
   };
+// Fonctions utilitaires mises à jour
+const getPaymentStatus = (facture) => {
+  // Utiliser le statut calculé si disponible, sinon celui de la commande
+  const status = facture.actualPaymentStatus || facture.paymentStatus;
+  
+  if (status === "paid" || facture.isFullyPaid) return "Payé";
+  if (status === "partial") return "Partiel";
+  return "En attente";
+};
+
+const getStatusColor = (status) => {
+  switch (status) {
+    case "Payé": return "green";
+    case "Partiel": return "orange";
+    default: return "red";
+  }
+};
+
+// Colonnes mises à jour pour le tableau
+const factureColumns = [
+  {
+    title: 'N° Facture',
+    dataIndex: 'numCommand',
+    key: 'numCommand',
+    render: (text, record) => (
+      <div>
+        <strong>{text}</strong>
+        {record.isFullyPaid && (
+          <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 8 }} />
+        )}
+      </div>
+    ),
+  },
+  {
+    title: 'Date',
+    dataIndex: 'date',
+    key: 'date',
+    render: (date) => moment(date).format('DD/MM/YYYY'),
+  },
+  {
+    title: 'Montant TTC',
+    dataIndex: 'totalTTC',
+    key: 'totalTTC',
+    render: (amount) => `${amount?.toFixed(2)} €` || '0.00 €',
+  },
+  {
+    title: 'Montant Payé Réel',
+    key: 'actualPaidAmount',
+    render: (_, record) => {
+      const paid = record.actualPaidAmount || record.paidAmount || 0;
+      return `${paid.toFixed(2)} €`;
+    },
+  },
+  {
+    title: 'Reste à Payer',
+    key: 'remainingAmount',
+    render: (_, record) => {
+      const total = record.totalTTC || 0;
+      const paid = record.actualPaidAmount || record.paidAmount || 0;
+      const remaining = total - paid;
+      return `${remaining.toFixed(2)} €`;
+    },
+  },
+  {
+    title: 'Statut Paiement',
+    key: 'paymentStatus',
+    render: (_, record) => {
+      const status = getPaymentStatus(record);
+      const isFullyPaid = record.isFullyPaid;
+      
+      return (
+        <Tag color={getStatusColor(status)}>
+          {isFullyPaid ? "Payé" : status}
+          {isFullyPaid && <CheckCircleOutlined style={{ marginLeft: 4 }} />}
+        </Tag>
+      );
+    },
+  },
+  {
+    title: 'Progression',
+    key: 'progress',
+    render: (_, record) => {
+      const total = record.totalTTC || 0;
+      const paid = record.actualPaidAmount || record.paidAmount || 0;
+      const percent = total > 0 ? Math.round((paid / total) * 100) : 0;
+      const isFullyPaid = record.isFullyPaid;
+      
+      return (
+        <Progress 
+          percent={percent} 
+          size="small" 
+          status={isFullyPaid ? "success" : percent > 0 ? "active" : "exception"}
+        />
+      );
+    },
+  },
+];
 
   return (
     <div className="max-w-6xl mx-auto mt-10 p-2">
@@ -326,14 +507,14 @@ const LeadDetailsPage = () => {
                     Informations Commercial
                   </h2>
                   {[
-                   {
-                    label: "Commercial prénom",
-                    value: lead.commercial?.prenom || "-",
-                  },
-                  {
-                    label: "Commercial nom",
-                    value: lead.commercial?.nom || "-",
-                  },
+                    {
+                      label: "Commercial prénom",
+                      value: lead.commercial?.prenom || "-",
+                    },
+                    {
+                      label: "Commercial nom",
+                      value: lead.commercial?.nom || "-",
+                    },
                   ].map(({ label, value }) => (
                     <div className="flex items-center gap-2" key={label}>
                       <p className="text-gray-600 font-semibold">{label}:</p>
@@ -396,7 +577,7 @@ const LeadDetailsPage = () => {
                 </div>
               </div>
             </TabPane>
-      
+
             {/* <TabPane tab="Contact" key="3">
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold text-gray-800">
@@ -487,7 +668,6 @@ const LeadDetailsPage = () => {
               </div>
             </TabPane> */}
 
-    
             <TabPane tab="Calendrier" key="4">
               <Row gutter={24}>
                 {/* Left Column for Event Details */}
@@ -520,10 +700,6 @@ const LeadDetailsPage = () => {
                       >
                         <Input placeholder="HH:mm" />
                       </Form.Item>
-
-                      {/* <Form.Item label="Objectif" name="objective" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item> */}
                       <Form.Item
                         label="Objectif"
                         name="objective"
@@ -602,11 +778,316 @@ const LeadDetailsPage = () => {
                 />
               </div>
             </TabPane>
-            {/* <TabPane tab="Contrat" key="8">
-              <div className="space-y-4">
-                <Command key={refreshCounter} />
+            <TabPane tab="Factures" key="8">
+  <div className="space-y-6">
+    <div className="flex justify-between items-center">
+      <h2 className="text-xl font-semibold text-gray-800">
+        Suivi des Factures
+      </h2>
+      <Button 
+        type="primary" 
+        icon={<FileTextOutlined />}
+        onClick={fetchFactures}
+        loading={loadingFactures}
+      >
+        Actualiser
+      </Button>
+    </div>
+
+    {/* Message si pas de données */}
+    {!loadingFactures && factures.length === 0 && (
+      <div className="text-center py-8">
+        <FileTextOutlined className="text-4xl text-gray-400 mb-4" />
+        <p className="text-gray-500">Aucune facture trouvée pour ce client</p>
+      </div>
+    )}
+
+    {/* Statistiques - Mises à jour pour utiliser le statut calculé */}
+    {factures.length > 0 && (
+      <>
+        <Row gutter={16}>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Total Factures"
+                value={factures.length}
+                prefix={<FileTextOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Payées"
+                value={factures.filter(f => f.isFullyPaid || f.actualPaymentStatus === 'paid').length}
+                valueStyle={{ color: '#3f8600' }}
+                prefix={<CheckCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="En Attente"
+                value={factures.filter(f => 
+                  !f.isFullyPaid && 
+                  (f.actualPaymentStatus === 'pending' || !f.actualPaymentStatus) &&
+                  (!f.paidAmount || f.paidAmount === 0)
+                ).length}
+                valueStyle={{ color: '#cf1322' }}
+                prefix={<ClockCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Paiements Partiels"
+                value={factures.filter(f => 
+                  !f.isFullyPaid && 
+                  (f.actualPaymentStatus === 'partial' || (f.paidAmount > 0 && f.paidAmount < f.totalTTC))
+                ).length}
+                valueStyle={{ color: '#fa8c16' }}
+                prefix={<ClockCircleOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Tableau des factures avec colonnes mises à jour */}
+        <Table
+          columns={[
+            {
+              title: 'N° Facture',
+              dataIndex: 'numCommand',
+              key: 'numCommand',
+              render: (text, record) => (
+                <div>
+                  <strong>{text}</strong>
+                  {record.isFullyPaid && (
+                    <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 8 }} />
+                  )}
+                </div>
+              ),
+            },
+            {
+              title: 'Date',
+              dataIndex: 'date',
+              key: 'date',
+              render: (date) => moment(date).format('DD/MM/YYYY'),
+            },
+            {
+              title: 'Montant TTC',
+              dataIndex: 'totalTTC',
+              key: 'totalTTC',
+              render: (amount) => `${amount?.toFixed(2)} €` || '0.00 €',
+            },
+            {
+              title: 'Montant Payé Réel',
+              key: 'actualPaidAmount',
+              render: (_, record) => {
+                const paid = record.actualPaidAmount || record.paidAmount || 0;
+                return `${paid.toFixed(2)} €`;
+              },
+            },
+            {
+              title: 'Reste à Payer',
+              key: 'remainingAmount',
+              render: (_, record) => {
+                const total = record.totalTTC || 0;
+                const paid = record.actualPaidAmount || record.paidAmount || 0;
+                const remaining = total - paid;
+                return `${remaining.toFixed(2)} €`;
+              },
+            },
+            {
+              title: 'Statut Paiement',
+              key: 'paymentStatus',
+              render: (_, record) => {
+                const status = record.isFullyPaid ? "Payé" : 
+                             record.actualPaymentStatus === "paid" ? "Payé" :
+                             record.actualPaymentStatus === "partial" ? "Partiel" : 
+                             record.paymentStatus === "paid" ? "Payé" :
+                             record.paymentStatus === "partial" ? "Partiel" : "En attente";
+                
+                const color = status === "Payé" ? "green" : 
+                            status === "Partiel" ? "orange" : "red";
+                
+                return (
+                  <Tag color={color}>
+                    {status}
+                    {record.isFullyPaid && <CheckCircleOutlined style={{ marginLeft: 4 }} />}
+                  </Tag>
+                );
+              },
+            },
+            {
+              title: 'Progression',
+              key: 'progress',
+              render: (_, record) => {
+                const total = record.totalTTC || 0;
+                const paid = record.actualPaidAmount || record.paidAmount || 0;
+                const percent = total > 0 ? Math.round((paid / total) * 100) : 0;
+                const isFullyPaid = record.isFullyPaid;
+                
+                return (
+                  <Progress 
+                    percent={percent} 
+                    size="small" 
+                    status={isFullyPaid ? "success" : percent > 0 ? "active" : "exception"}
+                  />
+                );
+              },
+            },
+          ]}
+          dataSource={factures}
+          rowKey="_id"
+          loading={loadingFactures}
+          pagination={{ pageSize: 10 }}
+          expandable={{
+            expandedRowRender: (record) => (
+              <div>
+                <h4 className="font-semibold mb-2">Détails de la commande:</h4>
+                <p><strong>Client:</strong> {record.nom}</p>
+                <p><strong>Société:</strong> {record.societe}</p>
+                <p><strong>Description:</strong> {record.title}</p>
+                <p><strong>Statut calculé:</strong> 
+                  <Tag color={record.isFullyPaid ? "green" : "orange"} className="ml-2">
+                    {record.isFullyPaid ? "COMPLÈTEMENT PAYÉ" : "EN COURS"}
+                  </Tag>
+                </p>
+                
+                {/* Détails des factures individuelles */}
+                <h4 className="font-semibold mt-4 mb-2">Factures associées:</h4>
+                {record.invoicesDetail && record.invoicesDetail.length > 0 ? (
+                  <Table
+                    size="small"
+                    columns={[
+                      {
+                        title: 'N° Facture',
+                        dataIndex: 'invoiceNumber',
+                        key: 'invoiceNumber',
+                      },
+                      {
+                        title: 'Montant',
+                        dataIndex: 'amount',
+                        key: 'amount',
+                        render: (amount) => `${amount?.toFixed(2)} €` || '0.00 €',
+                      },
+                      {
+                        title: 'Statut',
+                        dataIndex: 'status',
+                        key: 'status',
+                        render: (status) => (
+                          <Tag color={status === 'payée' ? 'green' : 'red'}>
+                            {status === 'payée' ? 'Payée' : 'En attente'}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        title: 'Date échéance',
+                        dataIndex: 'dueDate',
+                        key: 'dueDate',
+                        render: (date) => moment(date).format('DD/MM/YYYY'),
+                      },
+                      {
+                        title: 'Pourcentage',
+                        dataIndex: 'percentage',
+                        key: 'percentage',
+                        render: (percentage) => `${percentage}%`,
+                      },
+                    ]}
+                    dataSource={record.invoicesDetail}
+                    pagination={false}
+                  />
+                ) : (
+                  <p>Aucune facture détaillée disponible</p>
+                )}
+                
+                {/* Échéancier avec statut réel */}
+                <h4 className="font-semibold mt-4 mb-2">Échéancier:</h4>
+                <Timeline>
+                  {record.billingPlan?.installments?.map((installment, index) => {
+                    // Vérifier si cette échéance est payée
+                    const correspondingInvoice = record.invoicesDetail?.find(inv => 
+                      inv.percentage === installment.percentage
+                    );
+                    const isPaid = correspondingInvoice?.status === 'payée';
+                    
+                    return (
+                      <Timeline.Item
+                        key={installment._id}
+                        color={isPaid ? 'green' : 'red'}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p><strong>{installment.description}</strong></p>
+                            <p>Montant: {installment.amount.toFixed(2)} €</p>
+                            <p>Échéance: {moment(installment.dueDate).format('DD/MM/YYYY')}</p>
+                            <p>Pourcentage: {installment.percentage}%</p>
+                            {isPaid && (
+                              <Tag color="green" className="mt-1">
+                                <CheckCircleOutlined /> Payée
+                              </Tag>
+                            )}
+                          </div>
+                          {isPaid && correspondingInvoice?.payments && correspondingInvoice.payments.length > 0 && (
+                            <div className="text-right">
+                              <p><strong>Paiement:</strong></p>
+                              <p>Méthode: {correspondingInvoice.payments[0]?.method}</p>
+                              <p>Référence: {correspondingInvoice.payments[0]?.reference}</p>
+                              <p>Date: {moment(correspondingInvoice.payments[0]?.date).format('DD/MM/YYYY')}</p>
+                            </div>
+                          )}
+                        </div>
+                      </Timeline.Item>
+                    );
+                  })}
+                </Timeline>
               </div>
-            </TabPane> */}
+            ),
+          }}
+        />
+
+        {/* Résumé financier mis à jour */}
+        <Card title="Résumé Financier" className="mt-4">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title="Total TTC"
+                value={factures.reduce((sum, f) => sum + (f.totalTTC || 0), 0)}
+                precision={2}
+                suffix="€"
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Total Payé Réel"
+                value={factures.reduce((sum, f) => sum + (f.actualPaidAmount || f.paidAmount || 0), 0)}
+                precision={2}
+                suffix="€"
+                valueStyle={{ color: '#3f8600' }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Reste à Payer"
+                value={factures.reduce((sum, f) => {
+                  const total = f.totalTTC || 0;
+                  const paid = f.actualPaidAmount || f.paidAmount || 0;
+                  return sum + (total - paid);
+                }, 0)}
+                precision={2}
+                suffix="€"
+                valueStyle={{ color: '#cf1322' }}
+              />
+            </Col>
+          </Row>
+        </Card>
+      </>
+    )}
+  </div>
+</TabPane>
           </Tabs>
         </div>
       </div>
@@ -629,14 +1110,13 @@ const LeadDetailsPage = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-           <div className="bg-white rounded-xl shadow-lg p-6 sm:w-11/12 lg:w-2/3 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-lg p-6 sm:w-11/12 lg:w-2/3 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 text-center">
-            Modifier le client
+              Modifier le client
             </h2>
             <div className="flex flex-col space-y-6 justify-center">
               {/* Form Fields */}
               <div className="flex gap-4">
-             
                 <div className="flex flex-col gap-2 w-full">
                   <label className="text-lg font-medium text-gray-700">
                     Prénom et Nom
@@ -666,9 +1146,9 @@ const LeadDetailsPage = () => {
               </div>
 
               <div className="flex gap-4">
-              <div className="flex flex-col gap-2 w-full">
+                <div className="flex flex-col gap-2 w-full">
                   <label className="text-lg font-medium text-gray-700">
-                  Sociéte
+                    Sociéte
                   </label>
                   <input
                     type="text"
@@ -694,12 +1174,9 @@ const LeadDetailsPage = () => {
                 </div>
               </div>
 
+              <div className="flex gap-4"></div>
               <div className="flex gap-4">
-          
-              
-              </div>
-              <div className="flex gap-4">
-              <div className="flex flex-col gap-2 w-full">
+                <div className="flex flex-col gap-2 w-full">
                   <label className="text-lg font-medium text-gray-700">
                     Code Postal
                   </label>
@@ -727,7 +1204,6 @@ const LeadDetailsPage = () => {
                 </div>
               </div>
               <div className="flex gap-4">
-              
                 <div className="flex flex-col gap-2 w-full">
                   <label className="text-lg font-medium text-gray-700">
                     Address
@@ -761,7 +1237,7 @@ const LeadDetailsPage = () => {
                   onClick={() => setIsModalOpen(false)}
                   className="bg-gray-400 hover:bg-gray-500 text-white font-medium py-3 px-6 rounded-lg transition-all"
                 >
-                    Annuler
+                  Annuler
                 </button>
                 <button
                   onClick={handleSave}
@@ -772,7 +1248,7 @@ const LeadDetailsPage = () => {
               </div>
             </div>
           </div>
-          </div>
+        </div>
       )}
     </div>
   );

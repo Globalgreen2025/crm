@@ -59,7 +59,7 @@ const AllCommands = () => {
 
       // Filter commands to display only "devis" type
       const devisCommands = filterecommand.filter(
-        (command) => command.command_type === "commande"
+        (command) => command.command_type === "facture"
       );
         setAllCommands(devisCommands); // Set only the "devis" commands
         updateStatistics(devisCommands);
@@ -70,7 +70,7 @@ const AllCommands = () => {
 
       // Filter commands to display only "devis" type
       const devisCommands = filterecommand.filter(
-        (command) => command.command_type === "commande"
+        (command) => command.command_type === "facture"
       );
       console.log('devisCommands', devisCommands)
 

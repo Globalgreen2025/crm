@@ -31,7 +31,7 @@ const Command = ({ refreshTrigger }) => {
       );
       const filteredCommands = filterecommand.filter(
         (command) =>
-          command.command_type === "commande" && command.lead.toString() === id
+          command.command_type === "facture" && command.lead.toString() === id
       );
       setCommands(filteredCommands);
     } catch (error) {
@@ -45,7 +45,7 @@ const Command = ({ refreshTrigger }) => {
 
   const handleDelete = (commandId) => {
     Modal.confirm({
-      title: "Êtes-vous sûr de vouloir supprimer cette commande ?",
+      title: "Êtes-vous sûr de vouloir supprimer cette facture ?",
       content: "Cette action est irréversible.",
       okText: "Oui",
       cancelText: "Non",
@@ -53,7 +53,7 @@ const Command = ({ refreshTrigger }) => {
         try {
           await axios.delete(`/command/${commandId}`);
           setCommands((prev) => prev.filter((cmd) => cmd._id !== commandId));
-          message.success("Commande supprimée avec succès !");
+          message.success("Facture supprimée avec succès !");
         } catch (err) {
           console.error(err);
           message.error("Erreur lors de la suppression");
@@ -113,7 +113,7 @@ const Command = ({ refreshTrigger }) => {
       render: (text) => `${text} €`,
     },
     {
-      title: "TVA (10%)",
+      title: "TVA (5.5%)",
       dataIndex: "totalTVA",
       key: "totalTVA",
       render: (text) => `${text} €`,
@@ -235,7 +235,7 @@ const Command = ({ refreshTrigger }) => {
             <Descriptions.Item label="Total HT">
               {selectedCommand.totalHT} €
             </Descriptions.Item>
-            <Descriptions.Item label="Total TVA (10%)">
+            <Descriptions.Item label="Total TVA (5.5%)">
               {selectedCommand.totalTVA} €
             </Descriptions.Item>
             <Descriptions.Item label="Total TTC">

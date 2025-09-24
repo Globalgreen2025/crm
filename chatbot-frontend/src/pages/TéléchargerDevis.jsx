@@ -9,10 +9,7 @@ import {
   Statistic,
   Tag,
   Form,
-  Input,
-  Select,
-  DatePicker,
-  Radio,
+  Tooltip,
 } from "antd";
 import {
   EditOutlined,
@@ -20,26 +17,53 @@ import {
   ExclamationCircleOutlined,
   FilePdfOutlined,
   SendOutlined,
+  CheckOutlined,
   CloseOutlined,
-  InfoCircleOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import moment from "moment";
 import { jsPDF } from "jspdf";
 import logo from "../assets/logo.jpeg";
-import logorge from "../assets/logorge.PNG";
+import logorge from "../assets/glgr.png";
+import GenerateBillingPlan from "../components/GenerateBillingPlan";
+import InvoicesManagement from "../components/InvoicesManagement";
 
 const { confirm } = Modal;
+
+
+// Add this component before your main component
+const ProgressBar = ({ progress, width = 100, height = 8 }) => {
+  return (
+    <div
+      style={{
+        width: `${width}px`,
+        height: `${height}px`,
+        backgroundColor: '#f0f0f0',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        marginTop: '4px'
+      }}
+    >
+      <div
+        style={{
+          width: `${progress}%`,
+          height: '100%',
+          backgroundColor: progress === 100 ? '#52c41a' : '#1890ff',
+          borderRadius: '4px',
+          transition: 'width 0.3s ease'
+        }}
+      />
+    </div>
+  );
+};
 
 const AllDevis = () => {
   const [devisModalVisible, setDevisModalVisible] = useState(false);
   const [produits, setProduits] = useState([]);
-  const TVA = 10;
   const [form] = Form.useForm();
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [chatData, setChatData] = useState([]);
-
   const [allCommands, setAllCommands] = useState([]);
   const [error, setError] = useState(null);
   const [filteredCommands, setFilteredCommands] = useState([]);
@@ -52,14 +76,25 @@ const AllDevis = () => {
   const [activeFilter, setActiveFilter] = useState("all");
   const token = localStorage.getItem("token");
   const decodedUser = token ? jwtDecode(token) : null;
-  // const userLoged = decodedUser?.userId;
   const userRole = decodedUser?.role;
-  const [previewImage, setPreviewImage] = useState(false);
+  const [billingModalVisible, setBillingModalVisible] = useState(false);
+  const [invoicesModalVisible, setInvoicesModalVisible] = useState(false);
+  const [selectedCommand, setSelectedCommand] = useState(null);
+
+  // Add these functions:
+  const handleGenerateBillingPlan = (command) => {
+    setSelectedCommand(command);
+    setBillingModalVisible(true);
+  };
+
+  const handleManageInvoices = (command) => {
+    setSelectedCommand(command);
+    setInvoicesModalVisible(true);
+  };
 
   useEffect(() => {
     applyFilter(activeFilter);
   }, [allCommands, activeFilter]);
-
   const fetchCommands = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -68,29 +103,45 @@ const AllDevis = () => {
       const response = await axios.get("/command", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("API Responssssssssse:", response);
+      
       const commandsData = response?.data;
       const decodedToken = token ? jwtDecode(token) : null;
       const currentUserId = decodedToken?.userId;
       const role = decodedToken.role;
+      
+      let filteredCommands = [];
+      
       if (role === "Admin") {
-        setAllCommands(commandsData);
-        updateStatistics(commandsData);
+        filteredCommands = commandsData;
       } else {
-        const filterecommand = commandsData.filter(
-          (cmd) => cmd.session === currentUserId
+        filteredCommands = commandsData.filter(
+          (cmd) => cmd.session === currentUserId && cmd.command === "devis"
         );
-
-        // Filter commands to display only "devis" type
-        const devisCommands = filterecommand.filter(
-          (command) => command.command === "devis"
-        );
-        console.log("devisCommands", devisCommands);
-
-        setAllCommands(devisCommands); // Set only the "devis" commands
-        updateStatistics(devisCommands);
       }
-
+      filteredCommands.sort((a, b) => new Date(b.date) - new Date(a.date));
+      // Fetch invoices for each command
+      const commandsWithInvoices = await Promise.all(
+        filteredCommands.map(async (command) => {
+          try {
+            const invoicesResponse = await axios.get(`/command/${command._id}/invoices`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            return {
+              ...command,
+              invoices: invoicesResponse.data || []
+            };
+          } catch (error) {
+            console.error(`Error fetching invoices for command ${command._id}:`, error);
+            return {
+              ...command,
+              invoices: []
+            };
+          }
+        })
+      );
+      commandsWithInvoices.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setAllCommands(commandsWithInvoices);
+      updateStatistics(commandsWithInvoices);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching commands:", error);
@@ -98,6 +149,8 @@ const AllDevis = () => {
       setLoading(false);
     }
   };
+
+
   useEffect(() => {
     fetchCommands();
   }, []);
@@ -130,90 +183,12 @@ const AllDevis = () => {
   };
 
   const handleCommandTypeChange = (value) => {
-    const prefix = value === "devis" ? "D" : "C";
+    const prefix = value === "devis" ? "D" : "F";
     const randomNumber = generateRandomNumber(prefix);
     form.setFieldsValue({
       numCommand: randomNumber,
     });
   };
-
-  // Handle client selection change
-  const handleClientChange = (clientId) => {
-    setSelectedLeadId(clientId);
-    const selectedClient = chatData.find((client) => client._id === clientId);
-    if (selectedClient) {
-      form.setFieldsValue({
-        nom: selectedClient.nom,
-        address: selectedClient.address,
-        ville: selectedClient.ville,
-        codepostal: selectedClient.codepostal,
-        email: selectedClient.email || selectedClient.email1,
-        phone: selectedClient.phone,
-        siret: selectedClient.siret,
-        raissociale: selectedClient.societe,
-      });
-    }
-  };
-
-  const handleSubmitDevis = async (values) => {
-    try {
-      const token = localStorage.getItem("token");
-      const decodedToken = token ? jwtDecode(token) : null;
-      const commercialName = decodedToken?.name || decodedToken?.commercialName;
-
-      if (!decodedToken) {
-        alert("User not authenticated");
-        return;
-      }
-
-      // Get current form values including calculated totals
-      const formValues = form.getFieldsValue();
-
-      // const commercialId = decodedToken.commercialId || null;
-      const formData = {
-        ...values,
-        totalHT: formValues.totalHT || 0,
-        totalTVA: formValues.totalTVA || 0,
-        totalTTC: formValues.totalTTC || 0,
-        quantite: formValues.quantite || 1,
-        forfait: formValues.forfait || 0,
-        prixUnitaire: formValues.prixUnitaire || 0,
-        session: decodedToken?.userId || decodedToken?.commercialId,
-        leadId: selectedLeadId,
-        commercialName,
-      };
-
-      const response = await axios.post("/command", formData);
-      message.success("Devis ajoutée avec succès !");
-      setDevisModalVisible(false);
-      fetchCommands();
-    } catch (error) {
-      message.error("Impossible d'ajouter le devis");
-      console.error(error);
-    }
-  };
-
-  const calculateTotals = (quantity, unitPrice) => {
-    const qty = parseFloat(quantity) || 0;
-    const price = parseFloat(unitPrice) || 0;
-    const forfait = parseFloat(form.getFieldValue("forfait")) || 0;
-    const tvaRate = parseFloat(form.getFieldValue("TVA")) || 0;
-
-    const baseHT = qty * price;
-    // const totalHT = baseHT + forfait;
-    const totalHT = baseHT;
-    const totalTVA = totalHT * (tvaRate / 100);
-    const totalTTC = totalHT + totalTVA;
-
-    form.setFieldsValue({
-      totalHT: parseFloat(totalHT.toFixed(2)),
-      totalTVA: parseFloat(totalTVA.toFixed(2)),
-      totalTTC: parseFloat(totalTTC.toFixed(2)),
-      quantite: qty,
-      prixUnitaire: price,
-    });
-  };
-
   useEffect(() => {
     const getUserData = async () => {
       try {
@@ -237,7 +212,7 @@ const AllDevis = () => {
         filtered = allCommands.filter((cmd) => cmd.command_type === "devis");
         break;
       case "accepte":
-        filtered = allCommands.filter((cmd) => cmd.command_type === "commande");
+        filtered = allCommands.filter((cmd) => cmd.command_type === "facture");
         console.log("filtered", filtered);
         break;
       case "all":
@@ -313,444 +288,454 @@ const AllDevis = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
-    const marginTop = 0;
+    const marginTop = 10;
     const marginLeft = 5;
     const margin = 8;
+    const addFooter = (pageNum) => {
+      const footerY = pageHeight - 5; 
+      const leftText = "Global Green - SAS au capital social de 5000 €";
+      const centerText = "N°SIREN 94305436100010 - RCS Blois";
+      const rightText = "N° de TVA FR41492502992";
+  
+      doc.setFontSize(9);
+      doc.setFont(undefined, "normal");
+  
+      // Left-aligned
+      doc.text(leftText, margin, footerY);
+  
+      // Centered
+      doc.text(centerText, pageWidth / 2, footerY, { align: "center" });
+  
+      // Right-aligned
+      doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
+    };
+  
     const logoWidth = 40;
-    const logoHeight = 25;
-    const logoleftwidth = 50;
+    const logoHeight = 40;
+    const logoleftwidth = 40;
     const logoleftheight = 40;
-
+  
     // === Page 1 ===
-
-    // Add logos in top corners
+  
+    // Add logos - left logo only
     doc.addImage(
       logo,
       "JPEG",
-      marginTop,
-      marginTop,
+      marginLeft, // Use marginLeft instead of marginTop for horizontal positioning
+      marginTop, 
       logoleftwidth,
       logoleftheight
     ); // Left logo
+  
+// Company info on the right side
+doc.setFontSize(10); // same font size for all lines
+
+const rightStartX = pageWidth - 50; // Adjust X position
+
+// "Entreprise:" in bold
+doc.setFont(undefined, "bold");
+doc.setTextColor(0, 0, 0);
+doc.text("Entreprise:", rightStartX, 15);
+
+// The rest in regular Helvetica
+doc.setFont(undefined, "Helvetica");
+doc.setTextColor(0, 128, 0); // green for company name
+doc.text("GLOBAL GREEN", rightStartX, 21);
+
+doc.setTextColor(0, 0, 0); // black for the rest
+doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 27);
+doc.text("41350 VINEUIL - France", rightStartX, 32);
+doc.text("Contact@global-green.fr", rightStartX, 37);
+doc.text("07 64 71 26 87", rightStartX, 42);
+
+  
     doc.addImage(
-      logorge,
+      logorge, // You'll need to define this variable
       "PNG",
-      pageWidth - marginLeft - logoWidth,
+      pageWidth/2 - logoWidth/2,
       marginLeft,
       logoWidth,
-      logoHeight
-    ); // Right logo
-
-    // Company info
-    doc.setFontSize(12);
-    doc.setTextColor(0, 128, 0);
-    doc.setFont(undefined, "Helvetica");
-    doc.text("SAS GLOBAL GREEN", pageWidth / 2, 10, { align: "center" });
-    doc.setFont(undefined, "Helvetica");
-    doc.setFontSize(10);
-    doc.text("641 Avenue du grain d'or", pageWidth / 2, 16, {
-      align: "center",
-    });
-    doc.text("41350 Vineuil", pageWidth / 2, 22, { align: "center" });
-    doc.text("Tél : 02 54 42 97 74", pageWidth / 2, 28, { align: "center" });
-    doc.setTextColor(0, 0, 0);
-
-    // Legal information
-    doc.setFontSize(6);
-    doc.text(
-      "SAS au capital de 5000€ - Siret 923 000 234 00014 - NAT 4329A RCS BLOIS - TVA intra FR 62 501 806 657",
-      pageWidth / 2,
-      32,
-      { align: "center" }
+      logoHeight,
+      marginTop, 
     );
 
     doc.setFont(undefined, "Helvetica");
     doc.setFontSize(11);
+// Configuration
+const LINE_SPACING = 6; // Space between text lines (was 6)
+const UNDERLINE_OFFSET = 1; // Space between text and underline (was 2)
+const DASH_COLOR = 100; // Dark gray
+const LINE_WIDTH = 0.2;
+const SECTION_SPACING = 0.1; // Added space between sections
+doc.setFont(undefined, "Helvetica");
 
-    // Configuration
-    const LINE_SPACING = 8; // Space between text lines (was 6)
-    const UNDERLINE_OFFSET = 1; // Space between text and underline (was 2)
-    const DASH_COLOR = 100; // Dark gray
-    const LINE_WIDTH = 0.2;
-    const SECTION_SPACING = 0.1; // Added space between sections
-    doc.setFont(undefined, "Helvetica");
-    // Calculate maximum widths
-    const leftTexts = [
-      `M./Mme. ${command.nom || ""}`,
-      `Adresse: ${command.address || ""}`,
-      `Ville: ${command.ville || ""}`,
-      `Code postal: ${command.codepostal || ""}                        Tél: ${
-        command.phone || ""
-      }`,
-    ];
+doc.setFontSize(12);
+doc.setFont(undefined, "bold");
+doc.setTextColor(0, 0, 0);
+const devisY = 60;
+doc.text("Devis", margin, devisY);
 
-    const rightTexts = [
-      `Conseiller: ${command.commercialName || ""}`,
-      `Délai Travaux: ${command.workDelay || ""}`,
-    ];
+// Left info under "Devis"
+const emissionMoment = command.date ? moment(command.date) : moment();
 
-    // Get max widths
-    const maxLeftWidth = Math.max(
-      ...leftTexts.map(
-        (t) =>
-          (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
-          doc.internal.scaleFactor
-      )
-    );
+const leftTexts = [
+  `Numéro                               ${command.originalNumCommand || ""}`,
+  `Date d'émission:                 ${emissionMoment.format("DD/MM/YYYY")}`,
+  `Date d'expiration:               ${emissionMoment.clone().add(1, "month").format("DD/MM/YYYY")}`,
+  `Type de vente:                    Prestation de service`,
+];
 
-    const maxRightWidth = Math.max(
-      ...rightTexts.map(
-        (t) =>
-          (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
-          doc.internal.scaleFactor
-      )
-    );
+// Draw left texts in regular font size 10
+doc.setFontSize(10);
+doc.setFont(undefined, "Helvetica");
+doc.setTextColor(0, 0, 0);
+const rightTexts = [
+  `${command.nom || ""}`,
+  `${command.address || ""}`,
+  `${command.ville || ""},  ${command.codepostal || ""}`,
+  `${command.email || ""}`,
+];
 
-    // Improved dashed line function
-    function drawUnderline(doc, x, y, width) {
-      doc.setDrawColor(DASH_COLOR);
-      doc.setLineWidth(LINE_WIDTH);
-
-      const dashPattern = [2, 0.8]; // 3mm dash, 2mm gap
-      let currentX = x;
-
-      while (currentX < x + width) {
-        const dashEnd = Math.min(currentX + dashPattern[0], x + width);
-        doc.line(currentX, y, dashEnd, y);
-        currentX += dashPattern[0] + dashPattern[1];
-      }
-
-      doc.setDrawColor(0);
-    }
-
-    // Draw left section with spacing and added section spacing
-    let currentLeftY = 50;
-    leftTexts.forEach((text, index) => {
-      doc.text(text, margin, currentLeftY);
-      drawUnderline(doc, margin, currentLeftY + UNDERLINE_OFFSET, maxLeftWidth);
-      // Add extra space after each section except the last one
-      currentLeftY +=
-        LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
-    });
-
-    // Draw right section with spacing and added section spacing
-    let currentRightY = 50;
-    const rightX = pageWidth - margin - maxRightWidth;
-
-    rightTexts.forEach((text, index) => {
-      doc.text(text, rightX, currentRightY);
-      drawUnderline(
-        doc,
-        rightX,
-        currentRightY + UNDERLINE_OFFSET,
-        maxRightWidth
-      );
-      // Add extra space after each section except the last one
-      currentRightY +=
-        LINE_SPACING + (index < rightTexts.length - 1 ? SECTION_SPACING : 0);
-    });
-
-    // Order number and date (moved down by 6pt)
-    doc.setFontSize(10);
-
-    // Save current text color
-    const currentTextColors = doc.getTextColor();
-    doc.setFont(undefined, "Helvetica");
-    // Draw "Bon de commande N°" in black
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(`Bon de commande N° `, margin, 85);
-
-    // Draw the command number in red
-    doc.setTextColor(255, 0, 0); // Red
-    const prefixWidths =
-      (doc.getStringUnitWidth("Bon de commande N° ") *
-        doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-    doc.text(`${command.numCommand}`, margin + prefixWidths, 85);
-
-    // Draw date in black (right aligned)
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(
-      `Du. ${moment(command.date).format("DD/MM/YYYY")}`,
-      pageWidth - margin,
-      85,
-      { align: "right" }
-    );
-
-    doc.setTextColor(0, 0, 0); // Black
-    const dateText = `Du. ${moment(command.date).format("DD/MM/YYYY")}`;
-    doc.text(dateText, pageWidth - margin, 85, { align: "right" });
-
-    // Calculate width of date text
-    const dateTextWidth =
-      (doc.getStringUnitWidth(dateText) * doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-
-    // Draw underline aligned with right margin
-    const underlineY = 85 + UNDERLINE_OFFSET; // Same Y position as text plus offset
-    const underlineX = pageWidth - margin - dateTextWidth; // Right-aligned start position
-    drawUnderline(doc, underlineX, underlineY, dateTextWidth);
-
-    // Restore original text color
-    doc.setTextColor(currentTextColors);
-
-    doc.setFont(undefined, "Helvetica");
-    // Restore original text color
-    doc.setTextColor(currentTextColors);
-    // Work description header
-    doc.setFontSize(9);
-
-    const originalTextColor = doc.getTextColor();
-
-    const descWidth = 100;
-    const qteWidth = 15;
-    const prixWidth = 30;
-    const ttcWidth = 40;
-
-    // Calculate x positions
-    const descX = margin;
-    const qteX = descX + descWidth;
-    const prixX = qteX + qteWidth;
-    const ttcX = prixX + prixWidth;
-
-    // Vertical lines positions
-    const line1 = descX + descWidth;
-    const line2 = line1 + qteWidth;
-    const line3 = line2 + prixWidth;
-
-    // Header parameters - ADJUSTED VALUES
-    const headerY = 90;
-    const headerHeight = 8; // Height of the green background
-    const textY = headerY + 6; // Text positioned 6 units down from header top
-    const firstLineY = headerY + headerHeight; // First line goes right below header
-
-    // Draw header background (light green)
-    doc.setFillColor(217, 234, 211);
-    doc.rect(
-      margin + 0.2,
-      headerY + 0.2,
-      pageWidth - 2 * margin - 0.4,
-      headerHeight - 0.4,
-      "F"
-    );
-
-    // Top border line
-    doc.line(margin, headerY, pageWidth - margin, headerY);
-
-    // Table headers - bold and centered
-    doc.setFont(undefined, "bold");
-    doc.setTextColor(0, 0, 0);
-
-    // Calculate center positions
-    const descCenter = descX + descWidth / 2;
-    const qteCenter = qteX + qteWidth / 2;
-    const prixCenter = prixX + prixWidth / 2;
-    const ttcCenter = ttcX + ttcWidth / 2;
-
-    doc.text("Descriptif des travaux (Page 1/2)", descCenter, textY, {
-      align: "center",
-    });
-    doc.text("QTÉ", qteCenter, textY, { align: "center" });
-    doc.text("PRIX UNITAIRE", prixCenter, textY, { align: "center" });
-    doc.text("MONTANT T.T.C", ttcCenter, textY, { align: "center" });
-
-    // Reset to normal font
-    doc.setFont(undefined, "normal");
-
-    // Table body parameters
-    const tableEndY = pageHeight - 10;
-    const rowCount = 10;
-    const rowHeights = (tableEndY - firstLineY) / rowCount; // Calculate from firstLineY
-
-    // Draw horizontal lines - STARTING FROM BELOW HEADER
-    for (let i = 0; i <= rowCount; i++) {
-      const yPos = firstLineY + i * rowHeights;
-      doc.line(margin, yPos, pageWidth - margin, yPos);
-    }
-
-    // Draw vertical lines (full height)
-    doc.line(margin, headerY, margin, tableEndY);
-    doc.line(line1, headerY, line1, tableEndY);
-    doc.line(line2, headerY, line2, tableEndY);
-    doc.line(line3, headerY, line3, tableEndY);
-    doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
-
-    doc.setTextColor(originalTextColor);
+const maxRightWidth = Math.max(
+  ...rightTexts.map(
+    (t) =>
+      (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
+      doc.internal.scaleFactor
+  )
+);
 
 
-// const tableData = [
-//   {
-//     description: command.title || "N/A",
-//     quantity: command.quantite || 1,
-//     unitPrice: command.totalHT / (command.quantite || 1), // Calculate unit price
-//     total: command.totalTTC || 0
-//   }
-// ];
+// Right-side starting X
+const rightStartXd = pageWidth - margin - maxRightWidth - 4;
 
-// // If you have additional items in command.items
-// if (command.items && command.items.length > 0) {
-//   command.items.forEach(item => {
-//     tableData.push({
-//       description: item.title || "N/A",
-//       quantity: item.quantity || 1,
-//       unitPrice: (item.unitPrice || 0) / (item.quantity || 1), // Calculate unit price
-//       total: item.total || 0
-//     });
-//   });
-// }
+// Starting Y position
+let currentRightYy = 58; // adjust if needed
 
-// // Fill the table with data
-// let currentRowY = firstLineY + (rowHeights / 2);
+// 1️⃣ "Client ou cliente:" in bold, size 12
+doc.setFont(undefined, "bold");
+doc.setFontSize(12);
+doc.setTextColor(0, 0, 0); // black
+doc.text("Client ou cliente:", rightStartXd, currentRightYy);
 
-// tableData.forEach((row, rowIndex) => {
-//   // Break description into multiple lines if needed
-//   const descLines = doc.splitTextToSize(row.description, descWidth - 10);
-  
-//   // Description (left-aligned)
-//   doc.text(descLines, descX + 5, currentRowY);
-  
-//   // Quantity (centered)
-//   doc.text(row.quantity.toString(), qteX + (qteWidth / 2), currentRowY, { align: "center" });
-  
-//   // Unit Price (right-aligned, calculated as totalHT/quantity)
-//   doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth - 5, currentRowY, { align: "right" });
-  
-//   // Total TTC (right-aligned, kept as original)
-//   doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth - 5, currentRowY, { align: "right" });
-  
-//   currentRowY += rowHeights;
-  
-//   if (rowIndex >= rowCount - 1) return;
-// });
+// 2️⃣ Client name in bold and green
+currentRightYy += LINE_SPACING; // space below header
+doc.setFont(undefined, "bold");
+doc.setFontSize(10);
+doc.setTextColor(0, 128, 0); // green
+doc.text(`${command.nom || ""}`, rightStartXd, currentRightYy);
 
+// 3️⃣ Rest of the details in regular font
+const otherRightTexts = [
+  `${command.address || ""}`,
+  `${command.ville || ""}   ${command.codepostal || ""}`,
+  `${command.email || ""}`,
+];
 
-// Generate table data with proper product rows
-const tableData = [];
+doc.setFont(undefined, "Helvetica");
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0);
 
-// First check if we have items array
-if (command.items && command.items.length > 0) {
-  // Create one row per item
-  command.items.forEach(item => {
-    tableData.push({
-      description: item.title || "N/A",
-      quantity: item.quantite || 1,
-      unitPrice: item.prixUnitaire || 0, // Use direct unit price
-      total: item.montantTTC || (item.prixUnitaire * item.quantite * (1 + (item.tva || 0)/100))
-    });
-  });
-} else {
-  // Fallback to command-level data
-  tableData.push({
-    description: command.title || "N/A",
-    quantity: command.quantite || 1,
-    unitPrice: command.prixUnitaire || (command.totalHT / (command.quantite || 1)),
-    total: command.totalTTC || 0
-  });
-}
+currentRightYy += LINE_SPACING; // spacing below client name
+otherRightTexts.forEach((text, index) => {
+  doc.text(text, rightStartXd, currentRightYy);
+  currentRightYy +=
+    LINE_SPACING + (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
+});
 
-// Fill the table with data
-let currentRowY = firstLineY + (rowHeights / 2);
+// Get max widths
+const maxLeftWidth = Math.max(
+  ...leftTexts.map(
+    (t) =>
+      (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
+      doc.internal.scaleFactor
+  )
+);
 
-tableData.forEach((row, rowIndex) => {
-  // Break description into multiple lines if needed
-  const descLines = doc.splitTextToSize(row.description, descWidth - 10);
-  
-  // Description (left-aligned)
-  doc.text(descLines, descX + 5, currentRowY);
-  
-  // Quantity (centered)
-  doc.text(row.quantity.toString(), qteX + (qteWidth / 2), currentRowY, { align: "center" });
-  
-  // Unit Price (right-aligned)
-  doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth - 5, currentRowY, { align: "right" });
-  
-  // Total TTC (right-aligned)
-  doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth - 5, currentRowY, { align: "right" });
-  
-  currentRowY += rowHeights;
-  
-  if (rowIndex >= rowCount - 1) return;
+// INCREASED STARTING Y POSITIONS - PUSHED DOWN BY 20 UNITS
+let currentLeftY = 65; // Changed from 50 to 70
+leftTexts.forEach((text, index) => {
+  doc.text(text, margin, currentLeftY);
+  // drawUnderline(doc, margin, currentLeftY + UNDERLINE_OFFSET, maxLeftWidth);
+  // Add extra space after each section except the last one
+  currentLeftY +=
+    LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
 });
 
 
-    // === Page 2 ======================================================================================
-    doc.addPage();
+// Order number and date (moved down by additional 20pt)
+doc.setFontSize(10);
 
-    doc.addImage(
-      logo,
-      "JPEG",
-      marginTop,
-      marginTop,
-      logoleftwidth,
-      logoleftheight
-    ); // Left logo
-    doc.addImage(
-      logorge,
-      "PNG",
-      pageWidth - marginLeft - logoWidth,
-      marginLeft,
-      logoWidth,
-      logoHeight
-    ); // Right logo
+// Save current text color
+const currentTextColors = doc.getTextColor();
+doc.setFont(undefined, "bold");
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0); // Black
 
-    // Company info
-    doc.setFontSize(12);
-    doc.setTextColor(0, 128, 0);
-    doc.setFont(undefined, "bold");
-    doc.text("SAS GLOBAL GREEN", pageWidth / 2, 10, { align: "center" });
-    doc.setFont(undefined, "normal");
-    doc.setFontSize(10);
-    doc.text("641 Avenue du grain d'or", pageWidth / 2, 16, {
-      align: "center",
+const prestationsYStart = 100; // Y position of the first line
+const lineSpacing = 6; // space between lines
+
+// Line 1: Nature des prestations
+doc.text(
+  `Nature des prestations:`,
+  margin,
+  prestationsYStart
+);
+doc.setFont(undefined, "Helvetica");
+// Line 3: Installation description
+doc.text(
+  `Installation et raccordement d'une pompe à chaleur AIR/EAU`,
+  margin,
+  prestationsYStart + lineSpacing,
+);
+
+// Line 4: Nota
+doc.text(
+  `Nota: Fourniture des radiateurs par le client.`,
+  margin,
+  prestationsYStart + lineSpacing * 2
+);
+
+
+// Draw date in black (right aligned)
+doc.setTextColor(0, 0, 0); // Black
+// Right-aligned page number
+doc.setFont(undefined, "Helvetica");
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0); // Black
+doc.text(
+  `Page(s): 1 sur 2`,
+  pageWidth - margin,
+  105, // same Y as previous date
+  { align: "right" }
+);
+
+
+
+// Restore original text color
+doc.setTextColor(currentTextColors);
+
+doc.setFont(undefined, "Helvetica");
+// Restore original text color
+doc.setTextColor(currentTextColors);
+// Work description header
+doc.setFontSize(9);
+
+const originalTextColor = doc.getTextColor();
+
+// const descWidth = 100;
+// const qteWidth = 15;
+// const prixWidth = 30;
+// const ttcWidth = 40;
+const descWidth = 120; // a bit narrower description
+const qteWidth = 20;   // increase quantity width
+const prixWidth = 35;  // increase unit price width
+const ttcWidth = 20;   // increase total TTC width
+
+const descX = margin;
+const qteX = descX + descWidth;
+const prixX = qteX + qteWidth;
+const ttcX = prixX + prixWidth;
+
+// Vertical line positions
+const line1 = descX + descWidth;
+const line2 = line1 + qteWidth;
+const line3 = line2 + prixWidth;
+
+// Header parameters - ADJUSTED VALUES (PUSHED DOWN BY 20 UNITS)
+const headerY = 120; // Changed from 90 to 110
+const headerHeight = 8; // Height of the green background
+const textY = headerY + 6; // Text positioned 6 units down from header top
+const firstLineY = headerY + headerHeight; // First line goes right below header
+
+// Draw header background (light green)
+doc.setFillColor(21, 128, 61); 
+doc.rect(
+margin + 0.2,
+headerY + 0.2,
+pageWidth - 2 * margin - 0.4,
+headerHeight - 0.4,
+"F"
+);
+
+// Top border line
+doc.line(margin, headerY, pageWidth - margin, headerY);
+
+// Table headers - bold and centered
+doc.setFont(undefined, "bold");
+doc.setTextColor(0, 0, 0);
+
+// Calculate center positions
+const descCenter = descX + descWidth / 2;
+const qteCenter = qteX + qteWidth / 2;
+const prixCenter = prixX + prixWidth / 2;
+const ttcCenter = ttcX + ttcWidth / 2;
+
+doc.text("Descriptif des travaux (Page 1/2)", descCenter, textY, {
+align: "center",
+});
+doc.text("QTÉ", qteCenter, textY, { align: "center" });
+doc.text("Prix u. HT", prixCenter, textY, { align: "center" });
+doc.text("Total HT", ttcCenter, textY, { align: "center" });
+
+// Reset to normal font
+doc.setFont(undefined, "normal");
+
+// Table body parameters
+const tableEndY = pageHeight - 14;
+const rowCount = 2;
+const rowHeights = (tableEndY - firstLineY) / rowCount; // Calculate from firstLineY
+
+// Draw horizontal lines - STARTING FROM BELOW HEADER
+for (let i = 0; i <= rowCount; i++) {
+const yPos = firstLineY + i * rowHeights;
+doc.line(margin, yPos, pageWidth - margin, yPos);
+}
+
+// Draw vertical lines (full height)
+doc.line(margin, headerY, margin, tableEndY);
+doc.line(line1, headerY, line1, tableEndY);
+doc.line(line2, headerY, line2, tableEndY);
+doc.line(line3, headerY, line3, tableEndY);
+doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
+
+doc.setTextColor(originalTextColor);
+const tableData = [];
+if (command.items && command.items.length > 0) {
+  command.items.forEach((item) => {
+    tableData.push({
+      title: item.title || "N/A",
+      reference: item.reference || "",
+      description: item.description || "",
+      quantity: item.quantite || 1,
+      unitPrice: item.prixUnitaire || 0,
+      total:
+        item.montantTTC ||
+        item.prixUnitaire * item.quantite * (1 + (item.tva || 0) / 100),
     });
-    doc.text("41350 Vineuil", pageWidth / 2, 22, { align: "center" });
-    doc.text("Tél : 02 54 42 97 74", pageWidth / 2, 28, { align: "center" });
-    doc.setTextColor(0, 0, 0);
+  });
+} else {
+  tableData.push({
+    title: command.title || "N/A",
+    reference: command.reference || "",
+    description: command.description || "",
+    quantity: command.quantite || 1,
+    unitPrice:
+      command.prixUnitaire || command.totalHT / (command.quantite || 1),
+    total: command.totalTTC || 0,
+  });
+}
+let currentRowY = firstLineY + 8; // start just below header
+tableData.forEach((row) => {
+  // Font sizes and spacing
+  const titleFontSize = 10;
+  const refFontSize = 10;
+  const descFontSize = 9;
+  const titleRefSpacing = 0.5; // small space between title and ref
+  const refDescSpacing = 0.5;  // small space between ref and description
+  const descLineSpacing = 0.3;   // space between description lines
 
-    // Legal information
-    doc.setFontSize(6);
-    doc.text(
-      "SAS au capital de 5000€ - Siret 923 000 234 00014 - NAT 4329A RCS BLOIS - TVA intra FR 62 501 806 657",
-      pageWidth / 2,
-      32,
-      { align: "center" }
-    );
-    doc.setFontSize(10);
+  // Split description into lines
+  const descLines = doc.splitTextToSize(row.description, descWidth - 15);
 
-    // Draw "Bon de commande N°" in black
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(`Bon de commande N° `, margin, 50);
+  // Calculate total height of the left cell
+  const totalHeight =
+    titleFontSize +
+    titleRefSpacing +
+    refFontSize +
+    refDescSpacing +
+    descLines.length * (descFontSize + descLineSpacing);
 
-    // Draw the command number in red
-    doc.setTextColor(255, 0, 0); // Red
-    const prefixWidth =
-      (doc.getStringUnitWidth("Bon de commande N° ") *
-        doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-    doc.text(`${command.numCommand}`, margin + prefixWidth, 50);
+  // Center Y for numeric columns
+  const centerY = currentRowY + totalHeight / 2;
 
-    // Draw date in black (right aligned)
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(
-      `Du. ${moment(command.date).format("DD/MM/YYYY")}`,
-      pageWidth - margin,
-      50,
-      { align: "right" }
-    );
-    // Draw date in black (right aligned)
-    doc.setTextColor(0, 0, 0); // Black
-    const dateTexts = `Du. ${moment(command.date).format("DD/MM/YYYY")}`;
-    doc.text(dateTexts, pageWidth - margin, 50, { align: "right" });
+  // --- Left column: title, reference, description ---
+  let lineY = currentRowY;
 
-    // Calculate width of date text
-    const dateTextWidths =
-      (doc.getStringUnitWidth(dateTexts) * doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
+  // Title
+  doc.setFontSize(titleFontSize);
+  doc.setFont(undefined, "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text(row.title, descX + 5, lineY);
+  lineY += titleFontSize;
 
-    // Draw underline aligned with right margin
-    const underlineYs = 50 + UNDERLINE_OFFSET; // Position below the text
-    const underlineXs = pageWidth - margin - dateTextWidths; // Right-aligned start
-    drawUnderline(doc, underlineXs, underlineYs, dateTextWidths);
+  // Reference
+  doc.setFontSize(refFontSize);
+  doc.setFont(undefined, "italic");
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
+  lineY += refFontSize;
+
+  // Description with bullets
+  doc.setFontSize(descFontSize);
+  doc.setFont(undefined, "normal");
+  doc.setTextColor(0, 0, 0);
+  const rawDescLines = row.description.split("\n");
+
+  rawDescLines.forEach((rawLine) => {
+    // Prepend bullet only once per original line
+    const lineWithBullet = `• ${rawLine}`;
+    
+    // Wrap long lines
+    const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+  
+    // Draw each wrapped line (lineY moves down each time)
+    wrappedLines.forEach((line) => {
+      doc.text(line, descX + 4, lineY);
+      lineY += descFontSize + descLineSpacing;
+    });
+  });
+  // --- Numeric columns: centered vertically ---
+  doc.setFontSize(9);
+  doc.setFont(undefined, "normal");
+  doc.setTextColor(0, 0, 0);
+  doc.text(row.quantity.toString(), qteX + qteWidth / 2, centerY, { align: "center" });
+  doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth - 5, centerY, { align: "right" });
+  doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth - 5, centerY, { align: "right" });
+
+  // Move currentRowY for next row
+  currentRowY += totalHeight + 2; // small spacing between rows
+});
+doc.setPage(1);
+addFooter(1);
+
+ // === Page 2 ======================================================================================
+doc.addPage();
+
+const marginTopp = 10;
+const marginLeftp = 5;
+const logoWidthp = 40;
+const logoHeightp = 40;
+const logoleftwidthp = 40;
+const logoleftheightp = 40;
+
+
+// Left logo
+doc.addImage(
+  logo,
+  "JPEG",
+  marginLeftp,        // X
+  marginTopp,         // Y
+  logoleftwidthp,     // width
+  logoleftheightp     // height
+);
+
+// Center logo
+doc.addImage(
+  logorge,
+  "PNG",
+  (pageWidth - logoWidthp) / 2, // center horizontally
+  marginTopp,                   // Y
+  logoWidthp,
+  logoHeightp
+);
+
+
+// Page number bottom right
+doc.setFontSize(10);
+doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 40);
+
+
+  
 
     // Restore original text color
     doc.setTextColor(currentTextColors);
@@ -760,15 +745,15 @@ tableData.forEach((row, rowIndex) => {
 
     // };
     // === Common Constants ===
-    const BODY_ROW_HEIGHT = 15; // Height of body rows
-    const HEADER_ROW_HEIGHT = 6; // Smaller header height (reduced from 15)
-    const ROWS_PER_PAGE = 6;
+    const BODY_ROW_HEIGHT = 55; // Height of body rows
+    const HEADER_ROW_HEIGHT = 8; // Smaller header height (reduced from 15)
+    const ROWS_PER_PAGE = 2;
 
     // Column widths
-    const DESC_WIDTH = 100;
-    const QTY_WIDTH = 15;
-    const UNIT_PRICE_WIDTH = 30;
-    const TOTAL_WIDTH = 40;
+    const DESC_WIDTH = 120;
+    const QTY_WIDTH = 20;
+    const UNIT_PRICE_WIDTH = 35;
+    const TOTAL_WIDTH = 20;
 
     // Column positions
     const DESC_X = margin;
@@ -783,8 +768,8 @@ tableData.forEach((row, rowIndex) => {
 
     const drawTableFrame = (startY, pageNum) => {
       // Define header background color (light green)
-      const headerBgColor = [217, 234, 211];
-
+      const headerBgColor = [21, 128, 61];
+    
       // Draw smaller header background
       doc.setFillColor(...headerBgColor);
       doc.rect(
@@ -802,16 +787,17 @@ tableData.forEach((row, rowIndex) => {
       doc.setFontSize(9);
       doc.setFont(undefined, "bold");
       const textY = startY + HEADER_ROW_HEIGHT / 2 + 1; // Better vertical centering
-      doc.text('Descriptif des travaux (Page 2/2)',
+      doc.text(
+        "Descriptif des travaux (Page 2/2)",
         DESC_X + DESC_WIDTH / 2,
         textY,
         { align: "center" }
       );
       doc.text("QTÉ", QTY_X + QTY_WIDTH / 2, textY, { align: "center" });
-      doc.text("PRIX UNITAIRE", UNIT_PRICE_X + UNIT_PRICE_WIDTH / 2, textY, {
+      doc.text("Prix u. HT", UNIT_PRICE_X + UNIT_PRICE_WIDTH / 2, textY, {
         align: "center",
       });
-      doc.text("MONTANT T.T.C", TOTAL_X + TOTAL_WIDTH / 2, textY, {
+      doc.text("Total HT", TOTAL_X + TOTAL_WIDTH / 2, textY, {
         align: "center",
       });
       doc.setFont(undefined, "normal");
@@ -841,368 +827,91 @@ tableData.forEach((row, rowIndex) => {
       doc.line(pageWidth - margin, startY, pageWidth - margin, tableBottom);
     };
 
-
-    const addPaymentSection = (startY) => {
-      const tableWidth = pageWidth - 2 * margin;
-      const rowHeight = 10;
-      const primeRowHeight = 15; // Increased height for Prime CEE row
-      const col1Width = 120;
-      const col2Width = 40;
-    
-      // Adjust starting position
-      const adjustedStartY = startY + 6;
-    
-      // Adjust main table frame height to accommodate additional row
-      doc.rect(
-        margin,
-        adjustedStartY,
-        tableWidth,
-        primeRowHeight + rowHeight * 5 // Changed from 4 to 5
-      );
-    
-      // Prime CEE row (special taller section)
-      doc.line(margin, adjustedStartY, margin + col1Width, adjustedStartY);
-      doc.line(
-        margin + col1Width,
-        adjustedStartY,
-        margin + col1Width,
-        adjustedStartY + primeRowHeight
-      );
-      doc.line(
-        margin + col1Width + col2Width,
-        adjustedStartY,
-        margin + col1Width + col2Width,
-        adjustedStartY + primeRowHeight
-      );
-    
-      // Horizontal lines for main rows (now 5 rows instead of 4)
-      for (let i = 1; i <= 5; i++) { // Changed from 4 to 5
-        const yPos = adjustedStartY + primeRowHeight + i * rowHeight - rowHeight;
-        doc.line(margin, yPos, margin + tableWidth, yPos);
-      }
-    
-      // Vertical lines (extended for additional row)
-      doc.line(
-        margin + col1Width,
-        adjustedStartY + primeRowHeight,
-        margin + col1Width,
-        adjustedStartY + primeRowHeight + rowHeight * 5 // Changed from 4 to 5
-      );
-      doc.line(
-        margin + col1Width + col2Width,
-        adjustedStartY + primeRowHeight,
-        margin + col1Width + col2Width,
-        adjustedStartY + primeRowHeight + rowHeight * 5 // Changed from 4 to 5
-      );
-    
-      // Prime CEE section (unchanged)
-      doc.setFillColor(220, 230, 241);
-      doc.rect(
-        margin + 0.2,
-        adjustedStartY + 0.2,
-        col1Width - 0.4,
-        primeRowHeight - 0.4,
-        "F"
-      );
-      doc.setFontSize(10);
-      doc.setFont(undefined, "bold");
-      doc.text("Prime correspondant à la prime CEE", margin + 2, adjustedStartY + 5);
-      doc.text("d'incitation aux travaux d'économie d'énergie:", margin + 2, adjustedStartY + 10);
-      
-      // Checkboxes (unchanged)
-      doc.setFont(undefined, "bold");
-      doc.rect(margin + col1Width + 10, adjustedStartY + primeRowHeight / 2 - 3, 10, 6);
-      doc.text("OUI", margin + col1Width + 12, adjustedStartY + primeRowHeight / 2 + 1);
-      doc.rect(margin + col1Width + col2Width + 10, adjustedStartY + primeRowHeight / 2 - 3, 10, 6);
-      doc.text("NON", margin + col1Width + col2Width + 12, adjustedStartY + primeRowHeight / 2 + 1);
-    
-      // MODE DE RÈGLEMENT section (yellow background)
-      const firstNormalRowY = adjustedStartY + primeRowHeight;
-      doc.setFillColor(255, 255, 153);
-      doc.rect(margin + 0.2, firstNormalRowY + 0.2, col1Width - 0.4, rowHeight - 0.4, "F");
-      doc.setFont(undefined, "bold");
-      doc.text("MODE DE RÈGLEMENT:", margin + 2, firstNormalRowY + 5);
-    
-      // TOTAL HT row
-      doc.setFont(undefined, "bold");
-      doc.text("TOTAL HT", margin + col1Width + 2, firstNormalRowY + 5);
-      doc.text(
-        `${command.totalHT || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + 5,
-        { align: "right" }
-      );
-
-      const forfaitValue = command.forfait || 
-      (command.items && command.items.length > 0 && command.items[0].forfait) || 
-      0;
-    
-      // NEW: Forfait tarif forfait row
-      doc.text("Tarif forfait", margin + col1Width + 2, firstNormalRowY + rowHeight + 5);
-      doc.text(
-        `${forfaitValue || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + rowHeight + 5,
-        { align: "right" }
-      );
-    
-      // Acompte row (moved down)
-      doc.text("Acompte après 8 Jours", margin + 2, firstNormalRowY + rowHeight * 2 + 5);
-      doc.text("TVA(10%)", margin + col1Width + 2, firstNormalRowY + rowHeight * 2 + 5);
-      doc.text(
-        `${command.totalTVA || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + rowHeight * 2 + 5,
-        { align: "right" }
-      );
-    
-      // Solde row (moved down)
-      doc.text("Solde aux travaux", margin + 2, firstNormalRowY + rowHeight * 3 + 5);
-      doc.text("PRIME CEE", margin + col1Width + 2, firstNormalRowY + rowHeight * 3 + 5);
-      doc.text(
-        `${command.primeCEE || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + rowHeight * 3 + 5,
-        { align: "right" }
-      );
-    
-      // MONTANT TOTAL DU (moved down)
-      const totalRowY = firstNormalRowY + rowHeight * 4;
-      doc.setFillColor(217, 234, 211);
-      doc.rect(margin + col1Width + 0.2, totalRowY + 0.2, col2Width - 0.4, rowHeight - 0.4, "F");
-      doc.setFont(undefined, "bold");
-      doc.text("TOTAL DU", margin + col1Width + 2, totalRowY + 5);
-      
-      doc.setFont(undefined, "bold");
-      doc.text("Fait à:                                   Le:", margin + 2, totalRowY + 5);
-      doc.text(
-        `${command.totalFinal || ""} €`,
-        margin + col1Width + col2Width + 26,
-        totalRowY + 5,
-        { align: "right" }
-      );
-    
-      // Adjust return value for additional row
-      return adjustedStartY + primeRowHeight + rowHeight * 5;
-    };
-    // const addPaymentSection = (startY) => {
-    //   const tableWidth = pageWidth - 2 * margin;
-    //   const rowHeight = 10;
-    //   const primeRowHeight = 15; // Increased height for Prime CEE row
-    //   const col1Width = 120;
-    //   const col2Width = 40;
-
-    //   // Calculate the correct starting position (adjusted from old version)
-    //   const adjustedStartY = startY + 6; // This pushes it down by 15 units
-
-    //   // Main table frame (adjusted for taller first row)
-    //   doc.rect(
-    //     margin,
-    //     adjustedStartY,
-    //     tableWidth,
-    //     primeRowHeight + rowHeight * 4
-    //   );
-
-    //   // Prime CEE row (special taller section)
-    //   doc.line(margin, adjustedStartY, margin + col1Width, adjustedStartY);
-    //   doc.line(
-    //     margin + col1Width,
-    //     adjustedStartY,
-    //     margin + col1Width,
-    //     adjustedStartY + primeRowHeight
-    //   );
-    //   doc.line(
-    //     margin + col1Width + col2Width,
-    //     adjustedStartY,
-    //     margin + col1Width + col2Width,
-    //     adjustedStartY + primeRowHeight
-    //   );
-
-    //   // Horizontal lines for main rows (starting after taller row)
-    //   for (let i = 1; i <= 4; i++) {
-    //     const yPos =
-    //       adjustedStartY + primeRowHeight + i * rowHeight - rowHeight;
-    //     doc.line(margin, yPos, margin + tableWidth, yPos);
-    //   }
-
-    //   // Vertical lines (full height)
-    //   doc.line(
-    //     margin + col1Width,
-    //     adjustedStartY + primeRowHeight,
-    //     margin + col1Width,
-    //     adjustedStartY + primeRowHeight + rowHeight * 4
-    //   );
-    //   doc.line(
-    //     margin + col1Width + col2Width,
-    //     adjustedStartY + primeRowHeight,
-    //     margin + col1Width + col2Width,
-    //     adjustedStartY + primeRowHeight + rowHeight * 4
-    //   );
-
-    //   // Prime CEE text with light blue background and increased height
-    //   doc.setFillColor(220, 230, 241);
-    //   doc.rect(
-    //     margin + 0.2,
-    //     adjustedStartY + 0.2,
-    //     col1Width - 0.4,
-    //     primeRowHeight - 0.4,
-    //     "F"
-    //   );
-    //   doc.setFontSize(9);
-    //   doc.setFont(undefined, "bold");
-
-    //   // Split the long text into two lines
-    //   const primeText1 = "Prime correspondant à la prime CEE";
-    //   const primeText2 = "d'incitation aux travaux d'économie d'énergie:";
-
-    //   doc.text(primeText1, margin + 2, adjustedStartY + 5);
-    //   doc.text(primeText2, margin + 2, adjustedStartY + 10);
-
-    //   // Checkboxes positioned relative to taller row
-    //   doc.setFont(undefined, "normal");
-    //   doc.rect(
-    //     margin + col1Width + 10,
-    //     adjustedStartY + primeRowHeight / 2 - 3,
-    //     10,
-    //     6
-    //   );
-    //   doc.text(
-    //     "OUI",
-    //     margin + col1Width + 12,
-    //     adjustedStartY + primeRowHeight / 2 + 1
-    //   );
-    //   doc.rect(
-    //     margin + col1Width + col2Width + 10,
-    //     adjustedStartY + primeRowHeight / 2 - 3,
-    //     10,
-    //     6
-    //   );
-    //   doc.text(
-    //     "NON",
-    //     margin + col1Width + col2Width + 12,
-    //     adjustedStartY + primeRowHeight / 2 + 1
-    //   );
-
-    //   // MODE DE RÈGLEMENT (yellow) - adjusted y-position for taller first row
-    //   const firstNormalRowY = adjustedStartY + primeRowHeight;
-    //   doc.setFillColor(255, 255, 153);
-    //   doc.rect(
-    //     margin + 0.2,
-    //     firstNormalRowY + 0.2,
-    //     col1Width - 0.4,
-    //     rowHeight - 0.4,
-    //     "F"
-    //   );
-    //   doc.setFont(undefined, "bold");
-    //   doc.text("MODE DE RÈGLEMENT:", margin + 2, firstNormalRowY + 5);
-
-    //   // Rest of the row
-    //   doc.setFont(undefined, "normal");
-    //   doc.text("TOTAL HT", margin + col1Width + 2, firstNormalRowY + 5);
-    //   doc.text(
-    //     `${command.totalHT || ""} €`,
-    //     margin + col1Width + col2Width + 26,
-    //     firstNormalRowY + 5,
-    //     { align: "right" }
-    //   );
-
-    //   // Acompte row (no background)
-    //   doc.text(
-    //     "Acompte après 8 Jours",
-    //     margin + 2,
-    //     firstNormalRowY + rowHeight + 5
-    //   );
-    //   doc.text(
-    //     "TVA(10%)",
-    //     margin + col1Width + 2,
-    //     firstNormalRowY + rowHeight + 5
-    //   );
-    //   doc.text(
-    //     `${command.totalTVA || ""} €`,
-    //     margin + col1Width + col2Width + 26,
-    //     firstNormalRowY + rowHeight + 5,
-    //     { align: "right" }
-    //   );
-
-    //   // Solde row (no background)
-    //   doc.text(
-    //     "Solde aux travaux",
-    //     margin + 2,
-    //     firstNormalRowY + rowHeight * 2 + 5
-    //   );
-    //   doc.text(
-    //     "PRIME CEE",
-    //     margin + col1Width + 2,
-    //     firstNormalRowY + rowHeight * 2 + 5
-    //   );
-    //   doc.text(
-    //     `${command.primeCEE || ""} €`,
-    //     margin + col1Width + col2Width + 26,
-    //     firstNormalRowY + rowHeight * 2 + 5,
-    //     { align: "right" }
-    //   );
-
-    //   // MONTANT TOTAL DU (light green)
-    //   doc.setFillColor(217, 234, 211);
-    //   doc.rect(
-    //     margin + col1Width + 0.2,
-    //     firstNormalRowY + rowHeight * 3 + 0.2,
-    //     col2Width - 0.4,
-    //     rowHeight - 0.4,
-    //     "F"
-    //   );
-    //   doc.setFont(undefined, "bold");
-    //   doc.text(
-    //     "TOTAL DU",
-    //     margin + col1Width + 2,
-    //     firstNormalRowY + rowHeight * 3 + 5
-    //   );
-
-    //   // Rest of the row
-    //   doc.setFont(undefined, "normal");
-    //   doc.text(
-    //     "Fait à:                      Le:",
-    //     margin + 2,
-    //     firstNormalRowY + rowHeight * 3 + 5
-    //   );
-    //   doc.text(
-    //     `${command.totalFinal || ""} €`,
-    //     margin + col1Width + col2Width + 26,
-    //     firstNormalRowY + rowHeight * 3 + 5,
-    //     { align: "right" }
-    //   );
-
-    //   return adjustedStartY + primeRowHeight + rowHeight * 4;
-    // };
-
     // Draw table frame for page 2 with increased row height
     const tableStartY2 = 55;
     const tableEndY2 = tableStartY2 + ROWS_PER_PAGE * TABLE_ROW_HEIGHT;
     drawTableFrame(tableStartY2, tableEndY2, 2);
 
-    // Payment section with increased row height
-    const paymentStartY = tableEndY2; // Reduced gap to connect tables
-    const signatureY = addPaymentSection(paymentStartY) + 20;
+// === TVA Recap Section ===
+let recapY = tableEndY2 + 110;
 
-    // Signature section
-    doc.text("Signature du conseiller", 30, signatureY);
-    doc.text("Signature du client", 120, signatureY);
+// Section title
+doc.setFontSize(12);
+doc.setFont(undefined, "bold");
+doc.text("Détail TVA", margin, recapY);
 
-    const legalText = [
-      {
-        text: "Je soussigné......déclare avoir reçu l'information précontractuelle avant la signature de la présente commande et avoir accepté les conditions ci-dessus et au recto. Je reconnais rester en possession d'un double du présent bon de commande, doté d'un formulaire détachable de rétractation.",
-        style: "paragraph",
-      },
-      {
-        text: "- Je déclare, conformément à l'article L. 223-2 du Code de la Consommation, avoir été informé de mon droit d'inscription sur les fichiers bloc tel.",
-        style: "bullet",
-      },
-      {
-        text: "- Je déclare avoir en ma possession la notice explicative détaillée du ou des produits énoncés ci-dessus",
-        style: "bullet",
-      },
-    ];
+// Reset font
+doc.setFontSize(10);
+doc.setFont(undefined, "normal");
 
+recapY += 10;
+
+// --- TVA stacked format ---
+const col1X = margin;
+const col2X = margin + 40;
+const col3X = margin + 80;
+
+// Taux
+doc.setFont(undefined, "bold");
+doc.text("Taux:", col1X, recapY);
+doc.setFont(undefined, "normal");
+doc.text("5,5%", col1X, recapY + 6);
+
+// Montant TVA
+doc.setFont(undefined, "bold");
+doc.text("Montant TVA:", col2X, recapY);
+doc.setFont(undefined, "normal");
+doc.text(`${command.totalTVA || "42,40"} €`, col2X, recapY + 6);
+
+// Base HT
+doc.setFont(undefined, "bold");
+doc.text("Base HT:", col3X, recapY);
+doc.setFont(undefined, "normal");
+doc.text(`${command.totalHT || "424"} €`, col3X, recapY + 6);
+
+
+// --- Récapitulatif box ---
+const recapBoxX = pageWidth - 80; // widen the box
+let recapBoxY = recapY - 16;
+
+// Background rectangle (gray box)
+const boxWidth = 80;
+const boxHeight = 35; // adjust depending on spacing
+doc.setFillColor(200); // gray 400
+doc.rect(recapBoxX - 5, recapBoxY, boxWidth, boxHeight, "F");
+
+// Title
+doc.setFont(undefined, "bold");
+doc.setFontSize(12);
+doc.text("Récapitulatif", recapBoxX, recapBoxY + 5, { align: "left" });
+
+// Totals
+doc.setFont(undefined, "bold");
+doc.setFontSize(11);
+
+recapBoxY += 16;
+doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
+doc.text(`${command.totalHT || "17 800,51"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+
+recapBoxY += 8;
+doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
+doc.text(`${command.totalTVA || "979,03"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+
+recapBoxY += 8;
+doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
+doc.text(`${command.totalTTC} €`, pageWidth - margin, recapBoxY, { align: "right" });
+
+// === Signature Section ===
+recapY += 40;
+doc.setFontSize(10);
+doc.setFont(undefined, "normal");
+doc.text(
+  'Date et signature précédée de la mention :',
+  margin,
+  recapY
+);
+recapY += 6;
+doc.text('"Bon pour accord"', margin, recapY);
     // Styling Configuration
     const LEGAL_FONT_SIZE = 9;
     const LINE_HEIGHT = 5;
@@ -1210,11 +919,9 @@ tableData.forEach((row, rowIndex) => {
     const MAX_WIDTH = pageWidth - 2 * margin;
 
     // Draw the professional legal section
-    let currentY = signatureY + 15;
+    let currentY = 200;
 
-    // Add subtle top border
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, currentY - 3, pageWidth - margin, currentY - 3);
+   
     doc.setDrawColor(0);
 
     // Legal text header
@@ -1226,47 +933,15 @@ tableData.forEach((row, rowIndex) => {
     doc.setFontSize(LEGAL_FONT_SIZE);
     doc.setFont(undefined, "normal");
 
-    legalText.forEach((item) => {
-      const options = {
-        maxWidth: MAX_WIDTH,
-        align: "justify",
-      };
-
-      if (item.style === "paragraph") {
-        // Split long text into multiple lines automatically
-        const lines = doc.splitTextToSize(item.text, MAX_WIDTH);
-        lines.forEach((line) => {
-          doc.text(line, margin, currentY, options);
-          currentY += LINE_HEIGHT;
-        });
-        currentY += 2; // Extra space after paragraph
-      } else if (item.style === "bullet") {
-        // Handle bullet points with proper indentation
-        doc.text("•", margin, currentY);
-        const bulletText = item.text.substring(1); // Remove the '-' from original
-        const bulletLines = doc.splitTextToSize(
-          bulletText,
-          MAX_WIDTH - BULLET_INDENT
-        );
-
-        bulletLines.forEach((line, i) => {
-          const xPos =
-            i === 0 ? margin + BULLET_INDENT : margin + BULLET_INDENT;
-          doc.text(line, xPos, currentY, {
-            maxWidth: MAX_WIDTH - BULLET_INDENT,
-            align: "left",
-          });
-          currentY += LINE_HEIGHT;
-        });
-      }
-    });
-
+  
     // Add signature lines
     currentY += 10;
     doc.setDrawColor(0);
     doc.setFontSize(10);
+    doc.setPage(2);
+  addFooter(2);
     // Save the PDF
-    doc.save(`Bon_de_commande_${command.numCommand}.pdf`);
+    doc.save(`Devis_${command.originalNumCommand}.pdf`);
   };
 
   const handleSendPdf = async (commandId, e) => {
@@ -1279,403 +954,457 @@ tableData.forEach((row, rowIndex) => {
       );
     }
 
-    
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
-    const marginTop = 0;
+    const marginTop = 10;
     const marginLeft = 5;
     const margin = 8;
+    const addFooter = (pageNum) => {
+      const footerY = pageHeight - 5; 
+      const leftText = "Global Green - SAS au capital social de 5000 €";
+      const centerText = "N°SIREN 94305436100010 - RCS Blois";
+      const rightText = "N° de TVA FR41492502992";
+  
+      doc.setFontSize(9);
+      doc.setFont(undefined, "normal");
+  
+      // Left-aligned
+      doc.text(leftText, margin, footerY);
+  
+      // Centered
+      doc.text(centerText, pageWidth / 2, footerY, { align: "center" });
+  
+      // Right-aligned
+      doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
+    };
+  
     const logoWidth = 40;
-    const logoHeight = 25;
-    const logoleftwidth = 50;
+    const logoHeight = 40;
+    const logoleftwidth = 40;
     const logoleftheight = 40;
-
+  
     // === Page 1 ===
-
-    // Add logos in top corners
+  
+    // Add logos - left logo only
     doc.addImage(
       logo,
       "JPEG",
-      marginTop,
-      marginTop,
+      marginLeft, // Use marginLeft instead of marginTop for horizontal positioning
+      marginTop, 
       logoleftwidth,
       logoleftheight
     ); // Left logo
+  
+// Company info on the right side
+doc.setFontSize(10); // same font size for all lines
+
+const rightStartX = pageWidth - 50; // Adjust X position
+
+// "Entreprise:" in bold
+doc.setFont(undefined, "bold");
+doc.setTextColor(0, 0, 0);
+doc.text("Entreprise:", rightStartX, 15);
+
+// The rest in regular Helvetica
+doc.setFont(undefined, "Helvetica");
+doc.setTextColor(0, 128, 0); // green for company name
+doc.text("GLOBAL GREEN", rightStartX, 21);
+
+doc.setTextColor(0, 0, 0); // black for the rest
+doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 27);
+doc.text("41350 VINEUIL - France", rightStartX, 32);
+doc.text("Contact@global-green.fr", rightStartX, 37);
+doc.text("07 64 71 26 87", rightStartX, 42);
+
+  
     doc.addImage(
-      logorge,
+      logorge, // You'll need to define this variable
       "PNG",
-      pageWidth - marginLeft - logoWidth,
+      pageWidth/2 - logoWidth/2,
       marginLeft,
       logoWidth,
-      logoHeight
-    ); // Right logo
-
-    // Company info
-    doc.setFontSize(12);
-    doc.setTextColor(0, 128, 0);
-    doc.setFont(undefined, "Helvetica");
-    doc.text("SAS GLOBAL GREEN", pageWidth / 2, 10, { align: "center" });
-    doc.setFont(undefined, "Helvetica");
-    doc.setFontSize(10);
-    doc.text("641 Avenue du grain d'or", pageWidth / 2, 16, {
-      align: "center",
-    });
-    doc.text("41350 Vineuil", pageWidth / 2, 22, { align: "center" });
-    doc.text("Tél : 02 54 42 97 74", pageWidth / 2, 28, { align: "center" });
-    doc.setTextColor(0, 0, 0);
-
-    // Legal information
-    doc.setFontSize(6);
-    doc.text(
-      "SAS au capital de 5000€ - Siret 923 000 234 00014 - NAT 4329A RCS BLOIS - TVA intra FR 62 501 806 657",
-      pageWidth / 2,
-      32,
-      { align: "center" }
+      logoHeight,
+      marginTop, 
     );
 
     doc.setFont(undefined, "Helvetica");
     doc.setFontSize(11);
+// Configuration
+const LINE_SPACING = 6; // Space between text lines (was 6)
+const UNDERLINE_OFFSET = 1; // Space between text and underline (was 2)
+const DASH_COLOR = 100; // Dark gray
+const LINE_WIDTH = 0.2;
+const SECTION_SPACING = 0.1; // Added space between sections
+doc.setFont(undefined, "Helvetica");
 
-    // Configuration
-    const LINE_SPACING = 8; // Space between text lines (was 6)
-    const UNDERLINE_OFFSET = 1; // Space between text and underline (was 2)
-    const DASH_COLOR = 100; // Dark gray
-    const LINE_WIDTH = 0.2;
-    const SECTION_SPACING = 0.1; // Added space between sections
-    doc.setFont(undefined, "Helvetica");
-    // Calculate maximum widths
-    const leftTexts = [
-      `M./Mme. ${command.nom || ""}`,
-      `Adresse: ${command.address || ""}`,
-      `Ville: ${command.ville || ""}`,
-      `Code postal: ${command.codepostal || ""}                        Tél: ${
-        command.phone || ""
-      }`,
-    ];
+doc.setFontSize(12);
+doc.setFont(undefined, "bold");
+doc.setTextColor(0, 0, 0);
+const devisY = 60;
+doc.text("Devis", margin, devisY);
 
-    const rightTexts = [
-      `Conseiller: ${command.commercialName || ""}`,
-      `Délai Travaux: ${command.workDelay || ""}`,
-    ];
+// Left info under "Devis"
+const emissionMoment = command.date ? moment(command.date) : moment();
 
-    // Get max widths
-    const maxLeftWidth = Math.max(
-      ...leftTexts.map(
-        (t) =>
-          (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
-          doc.internal.scaleFactor
-      )
-    );
+const leftTexts = [
+  `Numéro                               ${command.originalNumCommand || ""}`,
+  `Date d'émission:                 ${emissionMoment.format("DD/MM/YYYY")}`,
+  `Date d'expiration:               ${emissionMoment.clone().add(1, "month").format("DD/MM/YYYY")}`,
+  `Type de vente:                    Prestation de service`,
+];
 
-    const maxRightWidth = Math.max(
-      ...rightTexts.map(
-        (t) =>
-          (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
-          doc.internal.scaleFactor
-      )
-    );
+// Draw left texts in regular font size 10
+doc.setFontSize(10);
+doc.setFont(undefined, "Helvetica");
+doc.setTextColor(0, 0, 0);
+const rightTexts = [
+  `${command.nom || ""}`,
+  `${command.address || ""}`,
+  `${command.ville || ""},  ${command.codepostal || ""}`,
+  `${command.email || ""}`,
+];
 
-    // Improved dashed line function
-    function drawUnderline(doc, x, y, width) {
-      doc.setDrawColor(DASH_COLOR);
-      doc.setLineWidth(LINE_WIDTH);
+const maxRightWidth = Math.max(
+  ...rightTexts.map(
+    (t) =>
+      (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
+      doc.internal.scaleFactor
+  )
+);
 
-      const dashPattern = [2, 0.8]; // 3mm dash, 2mm gap
-      let currentX = x;
 
-      while (currentX < x + width) {
-        const dashEnd = Math.min(currentX + dashPattern[0], x + width);
-        doc.line(currentX, y, dashEnd, y);
-        currentX += dashPattern[0] + dashPattern[1];
-      }
+// Right-side starting X
+const rightStartXd = pageWidth - margin - maxRightWidth - 4;
 
-      doc.setDrawColor(0);
-    }
+// Starting Y position
+let currentRightYy = 58; // adjust if needed
 
-    // Draw left section with spacing and added section spacing
-    let currentLeftY = 50;
-    leftTexts.forEach((text, index) => {
-      doc.text(text, margin, currentLeftY);
-      drawUnderline(doc, margin, currentLeftY + UNDERLINE_OFFSET, maxLeftWidth);
-      // Add extra space after each section except the last one
-      currentLeftY +=
-        LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
+// 1️⃣ "Client ou cliente:" in bold, size 12
+doc.setFont(undefined, "bold");
+doc.setFontSize(12);
+doc.setTextColor(0, 0, 0); // black
+doc.text("Client ou cliente:", rightStartXd, currentRightYy);
+
+// 2️⃣ Client name in bold and green
+currentRightYy += LINE_SPACING; // space below header
+doc.setFont(undefined, "bold");
+doc.setFontSize(10);
+doc.setTextColor(0, 128, 0); // green
+doc.text(`${command.nom || ""}`, rightStartXd, currentRightYy);
+
+// 3️⃣ Rest of the details in regular font
+const otherRightTexts = [
+  `${command.address || ""}`,
+  `${command.ville || ""}   ${command.codepostal || ""}`,
+  `${command.email || ""}`,
+];
+
+doc.setFont(undefined, "Helvetica");
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0);
+
+currentRightYy += LINE_SPACING; // spacing below client name
+otherRightTexts.forEach((text, index) => {
+  doc.text(text, rightStartXd, currentRightYy);
+  currentRightYy +=
+    LINE_SPACING + (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
+});
+
+// Get max widths
+const maxLeftWidth = Math.max(
+  ...leftTexts.map(
+    (t) =>
+      (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
+      doc.internal.scaleFactor
+  )
+);
+
+// INCREASED STARTING Y POSITIONS - PUSHED DOWN BY 20 UNITS
+let currentLeftY = 65; // Changed from 50 to 70
+leftTexts.forEach((text, index) => {
+  doc.text(text, margin, currentLeftY);
+  // drawUnderline(doc, margin, currentLeftY + UNDERLINE_OFFSET, maxLeftWidth);
+  // Add extra space after each section except the last one
+  currentLeftY +=
+    LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
+});
+
+
+// Order number and date (moved down by additional 20pt)
+doc.setFontSize(10);
+
+// Save current text color
+const currentTextColors = doc.getTextColor();
+doc.setFont(undefined, "bold");
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0); // Black
+
+const prestationsYStart = 100; // Y position of the first line
+const lineSpacing = 6; // space between lines
+
+// Line 1: Nature des prestations
+doc.text(
+  `Nature des prestations:`,
+  margin,
+  prestationsYStart
+);
+doc.setFont(undefined, "Helvetica");
+// Line 3: Installation description
+doc.text(
+  `Installation et raccordement d'une pompe à chaleur AIR/EAU`,
+  margin,
+  prestationsYStart + lineSpacing,
+);
+
+// Line 4: Nota
+doc.text(
+  `Nota: Fourniture des radiateurs par le client.`,
+  margin,
+  prestationsYStart + lineSpacing * 2
+);
+
+
+// Draw date in black (right aligned)
+doc.setTextColor(0, 0, 0); // Black
+// Right-aligned page number
+doc.setFont(undefined, "Helvetica");
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0); // Black
+doc.text(
+  `Page(s): 1 sur 2`,
+  pageWidth - margin,
+  105, // same Y as previous date
+  { align: "right" }
+);
+
+
+
+// Restore original text color
+doc.setTextColor(currentTextColors);
+
+doc.setFont(undefined, "Helvetica");
+// Restore original text color
+doc.setTextColor(currentTextColors);
+// Work description header
+doc.setFontSize(9);
+
+const originalTextColor = doc.getTextColor();
+
+// const descWidth = 100;
+// const qteWidth = 15;
+// const prixWidth = 30;
+// const ttcWidth = 40;
+const descWidth = 120; // a bit narrower description
+const qteWidth = 20;   // increase quantity width
+const prixWidth = 35;  // increase unit price width
+const ttcWidth = 20;   // increase total TTC width
+
+const descX = margin;
+const qteX = descX + descWidth;
+const prixX = qteX + qteWidth;
+const ttcX = prixX + prixWidth;
+
+// Vertical line positions
+const line1 = descX + descWidth;
+const line2 = line1 + qteWidth;
+const line3 = line2 + prixWidth;
+
+// Header parameters - ADJUSTED VALUES (PUSHED DOWN BY 20 UNITS)
+const headerY = 120; // Changed from 90 to 110
+const headerHeight = 8; // Height of the green background
+const textY = headerY + 6; // Text positioned 6 units down from header top
+const firstLineY = headerY + headerHeight; // First line goes right below header
+
+// Draw header background (light green)
+doc.setFillColor(21, 128, 61); 
+doc.rect(
+margin + 0.2,
+headerY + 0.2,
+pageWidth - 2 * margin - 0.4,
+headerHeight - 0.4,
+"F"
+);
+
+// Top border line
+doc.line(margin, headerY, pageWidth - margin, headerY);
+
+// Table headers - bold and centered
+doc.setFont(undefined, "bold");
+doc.setTextColor(0, 0, 0);
+
+// Calculate center positions
+const descCenter = descX + descWidth / 2;
+const qteCenter = qteX + qteWidth / 2;
+const prixCenter = prixX + prixWidth / 2;
+const ttcCenter = ttcX + ttcWidth / 2;
+
+doc.text("Descriptif des travaux (Page 1/2)", descCenter, textY, {
+align: "center",
+});
+doc.text("QTÉ", qteCenter, textY, { align: "center" });
+doc.text("Prix u. HT", prixCenter, textY, { align: "center" });
+doc.text("Total HT", ttcCenter, textY, { align: "center" });
+
+// Reset to normal font
+doc.setFont(undefined, "normal");
+
+// Table body parameters
+const tableEndY = pageHeight - 14;
+const rowCount = 2;
+const rowHeights = (tableEndY - firstLineY) / rowCount; // Calculate from firstLineY
+
+// Draw horizontal lines - STARTING FROM BELOW HEADER
+for (let i = 0; i <= rowCount; i++) {
+const yPos = firstLineY + i * rowHeights;
+doc.line(margin, yPos, pageWidth - margin, yPos);
+}
+
+// Draw vertical lines (full height)
+doc.line(margin, headerY, margin, tableEndY);
+doc.line(line1, headerY, line1, tableEndY);
+doc.line(line2, headerY, line2, tableEndY);
+doc.line(line3, headerY, line3, tableEndY);
+doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
+
+doc.setTextColor(originalTextColor);
+const tableData = [];
+if (command.items && command.items.length > 0) {
+  command.items.forEach((item) => {
+    tableData.push({
+      title: item.title || "N/A",
+      reference: item.reference || "",
+      description: item.description || "",
+      quantity: item.quantite || 1,
+      unitPrice: item.prixUnitaire || 0,
+      total:
+        item.montantTTC ||
+        item.prixUnitaire * item.quantite * (1 + (item.tva || 0) / 100),
     });
+  });
+} else {
+  tableData.push({
+    title: command.title || "N/A",
+    reference: command.reference || "",
+    description: command.description || "",
+    quantity: command.quantite || 1,
+    unitPrice:
+      command.prixUnitaire || command.totalHT / (command.quantite || 1),
+    total: command.totalTTC || 0,
+  });
+}
+let currentRowY = firstLineY + 8; // start just below header
+tableData.forEach((row) => {
+  // Font sizes and spacing
+  const titleFontSize = 10;
+  const refFontSize = 10;
+  const descFontSize = 9;
+  const titleRefSpacing = 0.5; // small space between title and ref
+  const refDescSpacing = 0.5;  // small space between ref and description
+  const descLineSpacing = 0.3;   // space between description lines
 
-    // Draw right section with spacing and added section spacing
-    let currentRightY = 50;
-    const rightX = pageWidth - margin - maxRightWidth;
+  // Split description into lines
+  const descLines = doc.splitTextToSize(row.description, descWidth - 15);
 
-    rightTexts.forEach((text, index) => {
-      doc.text(text, rightX, currentRightY);
-      drawUnderline(
-        doc,
-        rightX,
-        currentRightY + UNDERLINE_OFFSET,
-        maxRightWidth
-      );
-      // Add extra space after each section except the last one
-      currentRightY +=
-        LINE_SPACING + (index < rightTexts.length - 1 ? SECTION_SPACING : 0);
-    });
+  // Calculate total height of the left cell
+  const totalHeight =
+    titleFontSize +
+    titleRefSpacing +
+    refFontSize +
+    refDescSpacing +
+    descLines.length * (descFontSize + descLineSpacing);
 
-    // Order number and date (moved down by 6pt)
-    doc.setFontSize(10);
+  // Center Y for numeric columns
+  const centerY = currentRowY + totalHeight / 2;
 
-    // Save current text color
-    const currentTextColors = doc.getTextColor();
-    doc.setFont(undefined, "Helvetica");
-    // Draw "Bon de commande N°" in black
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(`Bon de commande N° `, margin, 85);
+  // --- Left column: title, reference, description ---
+  let lineY = currentRowY;
 
-    // Draw the command number in red
-    doc.setTextColor(255, 0, 0); // Red
-    const prefixWidths =
-      (doc.getStringUnitWidth("Bon de commande N° ") *
-        doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-    doc.text(`${command.numCommand}`, margin + prefixWidths, 85);
+  // Title
+  doc.setFontSize(titleFontSize);
+  doc.setFont(undefined, "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text(row.title, descX + 5, lineY);
+  lineY += titleFontSize;
 
-    // Draw date in black (right aligned)
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(
-      `Du. ${moment(command.date).format("DD/MM/YYYY")}`,
-      pageWidth - margin,
-      85,
-      { align: "right" }
-    );
+  // Reference
+  doc.setFontSize(refFontSize);
+  doc.setFont(undefined, "italic");
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
+  lineY += refFontSize;
 
-    doc.setTextColor(0, 0, 0); // Black
-    const dateText = `Du. ${moment(command.date).format("DD/MM/YYYY")}`;
-    doc.text(dateText, pageWidth - margin, 85, { align: "right" });
+  // Description with bullets
+  doc.setFontSize(descFontSize);
+  doc.setFont(undefined, "normal");
+  doc.setTextColor(0, 0, 0);
+  const rawDescLines = row.description.split("\n");
 
-    // Calculate width of date text
-    const dateTextWidth =
-      (doc.getStringUnitWidth(dateText) * doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-
-    // Draw underline aligned with right margin
-    const underlineY = 85 + UNDERLINE_OFFSET; // Same Y position as text plus offset
-    const underlineX = pageWidth - margin - dateTextWidth; // Right-aligned start position
-    drawUnderline(doc, underlineX, underlineY, dateTextWidth);
-
-    // Restore original text color
-    doc.setTextColor(currentTextColors);
-
-    doc.setFont(undefined, "Helvetica");
-    // Restore original text color
-    doc.setTextColor(currentTextColors);
-    // Work description header
-    doc.setFontSize(9);
-
-    const originalTextColor = doc.getTextColor();
-
-    const descWidth = 100;
-    const qteWidth = 15;
-    const prixWidth = 30;
-    const ttcWidth = 40;
-
-    // Calculate x positions
-    const descX = margin;
-    const qteX = descX + descWidth;
-    const prixX = qteX + qteWidth;
-    const ttcX = prixX + prixWidth;
-
-    // Vertical lines positions
-    const line1 = descX + descWidth;
-    const line2 = line1 + qteWidth;
-    const line3 = line2 + prixWidth;
-
-    // Header parameters - ADJUSTED VALUES
-    const headerY = 90;
-    const headerHeight = 8; // Height of the green background
-    const textY = headerY + 6; // Text positioned 6 units down from header top
-    const firstLineY = headerY + headerHeight; // First line goes right below header
-
-    // Draw header background (light green)
-    doc.setFillColor(217, 234, 211);
-    doc.rect(
-      margin + 0.2,
-      headerY + 0.2,
-      pageWidth - 2 * margin - 0.4,
-      headerHeight - 0.4,
-      "F"
-    );
-
-    // Top border line
-    doc.line(margin, headerY, pageWidth - margin, headerY);
-
-    // Table headers - bold and centered
-    doc.setFont(undefined, "bold");
-    doc.setTextColor(0, 0, 0);
-
-    // Calculate center positions
-    const descCenter = descX + descWidth / 2;
-    const qteCenter = qteX + qteWidth / 2;
-    const prixCenter = prixX + prixWidth / 2;
-    const ttcCenter = ttcX + ttcWidth / 2;
-
-    doc.text("Descriptif des travaux (Page 1/2)", descCenter, textY, {
-      align: "center",
-    });
-    doc.text("QTÉ", qteCenter, textY, { align: "center" });
-    doc.text("PRIX UNITAIRE", prixCenter, textY, { align: "center" });
-    doc.text("MONTANT T.T.C", ttcCenter, textY, { align: "center" });
-
-    // Reset to normal font
-    doc.setFont(undefined, "normal");
-
-    // Table body parameters
-    const tableEndY = pageHeight - 10;
-    const rowCount = 10;
-    const rowHeights = (tableEndY - firstLineY) / rowCount; // Calculate from firstLineY
-
-    // Draw horizontal lines - STARTING FROM BELOW HEADER
-    for (let i = 0; i <= rowCount; i++) {
-      const yPos = firstLineY + i * rowHeights;
-      doc.line(margin, yPos, pageWidth - margin, yPos);
-    }
-
-    // Draw vertical lines (full height)
-    doc.line(margin, headerY, margin, tableEndY);
-    doc.line(line1, headerY, line1, tableEndY);
-    doc.line(line2, headerY, line2, tableEndY);
-    doc.line(line3, headerY, line3, tableEndY);
-    doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
-
-    doc.setTextColor(originalTextColor);
-
-
-    const tableData = [];
-
-    // First check if we have items array
-    if (command.items && command.items.length > 0) {
-      // Create one row per item
-      command.items.forEach(item => {
-        tableData.push({
-          description: item.title || "N/A",
-          quantity: item.quantite || 1,
-          unitPrice: item.prixUnitaire || 0, // Use direct unit price
-          total: item.montantTTC || (item.prixUnitaire * item.quantite * (1 + (item.tva || 0)/100))
-        });
-      });
-    } else {
-      // Fallback to command-level data
-      tableData.push({
-        description: command.title || "N/A",
-        quantity: command.quantite || 1,
-        unitPrice: command.prixUnitaire || (command.totalHT / (command.quantite || 1)),
-        total: command.totalTTC || 0
-      });
-    }
+  rawDescLines.forEach((rawLine) => {
+    // Prepend bullet only once per original line
+    const lineWithBullet = `• ${rawLine}`;
     
-    // Fill the table with data
-    let currentRowY = firstLineY + (rowHeights / 2);
-    
-    tableData.forEach((row, rowIndex) => {
-      // Break description into multiple lines if needed
-      const descLines = doc.splitTextToSize(row.description, descWidth - 10);
-      
-      // Description (left-aligned)
-      doc.text(descLines, descX + 5, currentRowY);
-      
-      // Quantity (centered)
-      doc.text(row.quantity.toString(), qteX + (qteWidth / 2), currentRowY, { align: "center" });
-      
-      // Unit Price (right-aligned)
-      doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth - 5, currentRowY, { align: "right" });
-      
-      // Total TTC (right-aligned)
-      doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth - 5, currentRowY, { align: "right" });
-      
-      currentRowY += rowHeights;
-      
-      if (rowIndex >= rowCount - 1) return;
+    // Wrap long lines
+    const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+  
+    // Draw each wrapped line (lineY moves down each time)
+    wrappedLines.forEach((line) => {
+      doc.text(line, descX + 4, lineY);
+      lineY += descFontSize + descLineSpacing;
     });
+  });
+  // --- Numeric columns: centered vertically ---
+  doc.setFontSize(9);
+  doc.setFont(undefined, "normal");
+  doc.setTextColor(0, 0, 0);
+  doc.text(row.quantity.toString(), qteX + qteWidth / 2, centerY, { align: "center" });
+  doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth - 5, centerY, { align: "right" });
+  doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth - 5, centerY, { align: "right" });
+
+  // Move currentRowY for next row
+  currentRowY += totalHeight + 2; // small spacing between rows
+});
+doc.setPage(1);
+addFooter(1);
+
+ // === Page 2 ======================================================================================
+doc.addPage();
+
+const marginTopp = 10;
+const marginLeftp = 5;
+const logoWidthp = 40;
+const logoHeightp = 40;
+const logoleftwidthp = 40;
+const logoleftheightp = 40;
 
 
+// Left logo
+doc.addImage(
+  logo,
+  "JPEG",
+  marginLeftp,        // X
+  marginTopp,         // Y
+  logoleftwidthp,     // width
+  logoleftheightp     // height
+);
+
+// Center logo
+doc.addImage(
+  logorge,
+  "PNG",
+  (pageWidth - logoWidthp) / 2, // center horizontally
+  marginTopp,                   // Y
+  logoWidthp,
+  logoHeightp
+);
 
 
-    // === Page 2 ======================================================================================
-    doc.addPage();
+// Page number bottom right
+doc.setFontSize(10);
+doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 40);
 
-    doc.addImage(
-      logo,
-      "JPEG",
-      marginTop,
-      marginTop,
-      logoleftwidth,
-      logoleftheight
-    ); // Left logo
-    doc.addImage(
-      logorge,
-      "PNG",
-      pageWidth - marginLeft - logoWidth,
-      marginLeft,
-      logoWidth,
-      logoHeight
-    ); // Right logo
 
-    // Company info
-    doc.setFontSize(12);
-    doc.setTextColor(0, 128, 0);
-    doc.setFont(undefined, "bold");
-    doc.text("SAS GLOBAL GREEN", pageWidth / 2, 10, { align: "center" });
-    doc.setFont(undefined, "normal");
-    doc.setFontSize(10);
-    doc.text("641 Avenue du grain d'or", pageWidth / 2, 16, {
-      align: "center",
-    });
-    doc.text("41350 Vineuil", pageWidth / 2, 22, { align: "center" });
-    doc.text("Tél : 02 54 42 97 74", pageWidth / 2, 28, { align: "center" });
-    doc.setTextColor(0, 0, 0);
-
-    // Legal information
-    doc.setFontSize(6);
-    doc.text(
-      "SAS au capital de 5000€ - Siret 923 000 234 00014 - NAT 4329A RCS BLOIS - TVA intra FR 62 501 806 657",
-      pageWidth / 2,
-      32,
-      { align: "center" }
-    );
-    doc.setFontSize(10);
-
-    // Draw "Bon de commande N°" in black
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(`Bon de commande N° `, margin, 50);
-
-    // Draw the command number in red
-    doc.setTextColor(255, 0, 0); // Red
-    const prefixWidth =
-      (doc.getStringUnitWidth("Bon de commande N° ") *
-        doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-    doc.text(`${command.numCommand}`, margin + prefixWidth, 50);
-
-    // Draw date in black (right aligned)
-    doc.setTextColor(0, 0, 0); // Black
-    doc.text(
-      `Du. ${moment(command.date).format("DD/MM/YYYY")}`,
-      pageWidth - margin,
-      50,
-      { align: "right" }
-    );
-    // Draw date in black (right aligned)
-    doc.setTextColor(0, 0, 0); // Black
-    const dateTexts = `Du. ${moment(command.date).format("DD/MM/YYYY")}`;
-    doc.text(dateTexts, pageWidth - margin, 50, { align: "right" });
-
-    // Calculate width of date text
-    const dateTextWidths =
-      (doc.getStringUnitWidth(dateTexts) * doc.internal.getFontSize()) /
-      doc.internal.scaleFactor;
-
-    // Draw underline aligned with right margin
-    const underlineYs = 50 + UNDERLINE_OFFSET; // Position below the text
-    const underlineXs = pageWidth - margin - dateTextWidths; // Right-aligned start
-    drawUnderline(doc, underlineXs, underlineYs, dateTextWidths);
+  
 
     // Restore original text color
     doc.setTextColor(currentTextColors);
@@ -1685,15 +1414,15 @@ tableData.forEach((row, rowIndex) => {
 
     // };
     // === Common Constants ===
-    const BODY_ROW_HEIGHT = 15; // Height of body rows
-    const HEADER_ROW_HEIGHT = 6; // Smaller header height (reduced from 15)
-    const ROWS_PER_PAGE = 6;
+    const BODY_ROW_HEIGHT = 55; // Height of body rows
+    const HEADER_ROW_HEIGHT = 8; // Smaller header height (reduced from 15)
+    const ROWS_PER_PAGE = 2;
 
     // Column widths
-    const DESC_WIDTH = 100;
-    const QTY_WIDTH = 15;
-    const UNIT_PRICE_WIDTH = 30;
-    const TOTAL_WIDTH = 40;
+    const DESC_WIDTH = 120;
+    const QTY_WIDTH = 20;
+    const UNIT_PRICE_WIDTH = 35;
+    const TOTAL_WIDTH = 20;
 
     // Column positions
     const DESC_X = margin;
@@ -1708,8 +1437,8 @@ tableData.forEach((row, rowIndex) => {
 
     const drawTableFrame = (startY, pageNum) => {
       // Define header background color (light green)
-      const headerBgColor = [217, 234, 211];
-
+      const headerBgColor = [21, 128, 61];
+    
       // Draw smaller header background
       doc.setFillColor(...headerBgColor);
       doc.rect(
@@ -1728,16 +1457,16 @@ tableData.forEach((row, rowIndex) => {
       doc.setFont(undefined, "bold");
       const textY = startY + HEADER_ROW_HEIGHT / 2 + 1; // Better vertical centering
       doc.text(
-        `Descriptif des travaux (Page ${pageNum}/2)`,
+        "Descriptif des travaux (Page 2/2)",
         DESC_X + DESC_WIDTH / 2,
         textY,
         { align: "center" }
       );
       doc.text("QTÉ", QTY_X + QTY_WIDTH / 2, textY, { align: "center" });
-      doc.text("PRIX UNITAIRE", UNIT_PRICE_X + UNIT_PRICE_WIDTH / 2, textY, {
+      doc.text("Prix u. HT", UNIT_PRICE_X + UNIT_PRICE_WIDTH / 2, textY, {
         align: "center",
       });
-      doc.text("MONTANT T.T.C", TOTAL_X + TOTAL_WIDTH / 2, textY, {
+      doc.text("Total HT", TOTAL_X + TOTAL_WIDTH / 2, textY, {
         align: "center",
       });
       doc.setFont(undefined, "normal");
@@ -1767,179 +1496,91 @@ tableData.forEach((row, rowIndex) => {
       doc.line(pageWidth - margin, startY, pageWidth - margin, tableBottom);
     };
 
-
-    const addPaymentSection = (startY) => {
-      const tableWidth = pageWidth - 2 * margin;
-      const rowHeight = 10;
-      const primeRowHeight = 15; // Increased height for Prime CEE row
-      const col1Width = 120;
-      const col2Width = 40;
-    
-      // Adjust starting position
-      const adjustedStartY = startY + 6;
-    
-      // Adjust main table frame height to accommodate additional row
-      doc.rect(
-        margin,
-        adjustedStartY,
-        tableWidth,
-        primeRowHeight + rowHeight * 5 // Changed from 4 to 5
-      );
-    
-      // Prime CEE row (special taller section)
-      doc.line(margin, adjustedStartY, margin + col1Width, adjustedStartY);
-      doc.line(
-        margin + col1Width,
-        adjustedStartY,
-        margin + col1Width,
-        adjustedStartY + primeRowHeight
-      );
-      doc.line(
-        margin + col1Width + col2Width,
-        adjustedStartY,
-        margin + col1Width + col2Width,
-        adjustedStartY + primeRowHeight
-      );
-    
-      // Horizontal lines for main rows (now 5 rows instead of 4)
-      for (let i = 1; i <= 5; i++) { // Changed from 4 to 5
-        const yPos = adjustedStartY + primeRowHeight + i * rowHeight - rowHeight;
-        doc.line(margin, yPos, margin + tableWidth, yPos);
-      }
-    
-      // Vertical lines (extended for additional row)
-      doc.line(
-        margin + col1Width,
-        adjustedStartY + primeRowHeight,
-        margin + col1Width,
-        adjustedStartY + primeRowHeight + rowHeight * 5 // Changed from 4 to 5
-      );
-      doc.line(
-        margin + col1Width + col2Width,
-        adjustedStartY + primeRowHeight,
-        margin + col1Width + col2Width,
-        adjustedStartY + primeRowHeight + rowHeight * 5 // Changed from 4 to 5
-      );
-    
-      // Prime CEE section (unchanged)
-      doc.setFillColor(220, 230, 241);
-      doc.rect(
-        margin + 0.2,
-        adjustedStartY + 0.2,
-        col1Width - 0.4,
-        primeRowHeight - 0.4,
-        "F"
-      );
-      doc.setFontSize(10);
-      doc.setFont(undefined, "bold");
-      doc.text("Prime correspondant à la prime CEE", margin + 2, adjustedStartY + 5);
-      doc.text("d'incitation aux travaux d'économie d'énergie:", margin + 2, adjustedStartY + 10);
-      
-      // Checkboxes (unchanged)
-      doc.setFont(undefined, "bold");
-      doc.rect(margin + col1Width + 10, adjustedStartY + primeRowHeight / 2 - 3, 10, 6);
-      doc.text("OUI", margin + col1Width + 12, adjustedStartY + primeRowHeight / 2 + 1);
-      doc.rect(margin + col1Width + col2Width + 10, adjustedStartY + primeRowHeight / 2 - 3, 10, 6);
-      doc.text("NON", margin + col1Width + col2Width + 12, adjustedStartY + primeRowHeight / 2 + 1);
-    
-      // MODE DE RÈGLEMENT section (yellow background)
-      const firstNormalRowY = adjustedStartY + primeRowHeight;
-      doc.setFillColor(255, 255, 153);
-      doc.rect(margin + 0.2, firstNormalRowY + 0.2, col1Width - 0.4, rowHeight - 0.4, "F");
-      doc.setFont(undefined, "bold");
-      doc.text("MODE DE RÈGLEMENT:", margin + 2, firstNormalRowY + 5);
-    
-      // TOTAL HT row
-      doc.setFont(undefined, "bold");
-      doc.text("TOTAL HT", margin + col1Width + 2, firstNormalRowY + 5);
-      doc.text(
-        `${command.totalHT || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + 5,
-        { align: "right" }
-      );
-
-      const forfaitValue = command.forfait || 
-      (command.items && command.items.length > 0 && command.items[0].forfait) || 
-      0;
-    
-      // NEW: Forfait tarif forfait row
-      doc.text("Tarif forfait", margin + col1Width + 2, firstNormalRowY + rowHeight + 5);
-      doc.text(
-        `${forfaitValue || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + rowHeight + 5,
-        { align: "right" }
-      );
-    
-      // Acompte row (moved down)
-      doc.text("Acompte après 8 Jours", margin + 2, firstNormalRowY + rowHeight * 2 + 5);
-      doc.text("TVA(10%)", margin + col1Width + 2, firstNormalRowY + rowHeight * 2 + 5);
-      doc.text(
-        `${command.totalTVA || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + rowHeight * 2 + 5,
-        { align: "right" }
-      );
-    
-      // Solde row (moved down)
-      doc.text("Solde aux travaux", margin + 2, firstNormalRowY + rowHeight * 3 + 5);
-      doc.text("PRIME CEE", margin + col1Width + 2, firstNormalRowY + rowHeight * 3 + 5);
-      doc.text(
-        `${command.primeCEE || ""} €`,
-        margin + col1Width + col2Width + 26,
-        firstNormalRowY + rowHeight * 3 + 5,
-        { align: "right" }
-      );
-    
-      // MONTANT TOTAL DU (moved down)
-      const totalRowY = firstNormalRowY + rowHeight * 4;
-      doc.setFillColor(217, 234, 211);
-      doc.rect(margin + col1Width + 0.2, totalRowY + 0.2, col2Width - 0.4, rowHeight - 0.4, "F");
-      doc.setFont(undefined, "bold");
-      doc.text("TOTAL DU", margin + col1Width + 2, totalRowY + 5);
-      
-      doc.setFont(undefined, "bold");
-      doc.text("Fait à:                                   Le:", margin + 2, totalRowY + 5);
-      doc.text(
-        `${command.totalFinal || ""} €`,
-        margin + col1Width + col2Width + 26,
-        totalRowY + 5,
-        { align: "right" }
-      );
-    
-      // Adjust return value for additional row
-      return adjustedStartY + primeRowHeight + rowHeight * 5;
-    };
-  
     // Draw table frame for page 2 with increased row height
     const tableStartY2 = 55;
     const tableEndY2 = tableStartY2 + ROWS_PER_PAGE * TABLE_ROW_HEIGHT;
     drawTableFrame(tableStartY2, tableEndY2, 2);
 
-    // Payment section with increased row height
-    const paymentStartY = tableEndY2; // Reduced gap to connect tables
-    const signatureY = addPaymentSection(paymentStartY) + 20;
+// === TVA Recap Section ===
+let recapY = tableEndY2 + 110;
 
-    // Signature section
-    doc.text("Signature du conseiller", 30, signatureY);
-    doc.text("Signature du client", 120, signatureY);
+// Section title
+doc.setFontSize(12);
+doc.setFont(undefined, "bold");
+doc.text("Détail TVA", margin, recapY);
 
-    const legalText = [
-      {
-        text: "Je soussigné......déclare avoir reçu l'information précontractuelle avant la signature de la présente commande et avoir accepté les conditions ci-dessus et au recto. Je reconnais rester en possession d'un double du présent bon de commande, doté d'un formulaire détachable de rétractation.",
-        style: "paragraph",
-      },
-      {
-        text: "- Je déclare, conformément à l'article L. 223-2 du Code de la Consommation, avoir été informé de mon droit d'inscription sur les fichiers bloc tel.",
-        style: "bullet",
-      },
-      {
-        text: "- Je déclare avoir en ma possession la notice explicative détaillée du ou des produits énoncés ci-dessus",
-        style: "bullet",
-      },
-    ];
+// Reset font
+doc.setFontSize(10);
+doc.setFont(undefined, "normal");
 
+recapY += 10;
+
+// --- TVA stacked format ---
+const col1X = margin;
+const col2X = margin + 40;
+const col3X = margin + 80;
+
+// Taux
+doc.setFont(undefined, "bold");
+doc.text("Taux:", col1X, recapY);
+doc.setFont(undefined, "normal");
+doc.text("5,5%", col1X, recapY + 6);
+
+// Montant TVA
+doc.setFont(undefined, "bold");
+doc.text("Montant TVA:", col2X, recapY);
+doc.setFont(undefined, "normal");
+doc.text(`${command.totalTVA || "42,40"} €`, col2X, recapY + 6);
+
+// Base HT
+doc.setFont(undefined, "bold");
+doc.text("Base HT:", col3X, recapY);
+doc.setFont(undefined, "normal");
+doc.text(`${command.totalHT || "424"} €`, col3X, recapY + 6);
+
+
+// --- Récapitulatif box ---
+const recapBoxX = pageWidth - 80; // widen the box
+let recapBoxY = recapY - 16;
+
+// Background rectangle (gray box)
+const boxWidth = 80;
+const boxHeight = 35; // adjust depending on spacing
+doc.setFillColor(200); // gray 400
+doc.rect(recapBoxX - 5, recapBoxY, boxWidth, boxHeight, "F");
+
+// Title
+doc.setFont(undefined, "bold");
+doc.setFontSize(12);
+doc.text("Récapitulatif", recapBoxX, recapBoxY + 5, { align: "left" });
+
+// Totals
+doc.setFont(undefined, "bold");
+doc.setFontSize(11);
+
+recapBoxY += 16;
+doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
+doc.text(`${command.totalHT || "17 800,51"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+
+recapBoxY += 8;
+doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
+doc.text(`${command.totalTVA || "979,03"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+
+recapBoxY += 8;
+doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
+doc.text(`${command.totalTTC} €`, pageWidth - margin, recapBoxY, { align: "right" });
+
+// === Signature Section ===
+recapY += 40;
+doc.setFontSize(10);
+doc.setFont(undefined, "normal");
+doc.text(
+  'Date et signature précédée de la mention :',
+  margin,
+  recapY
+);
+recapY += 6;
+doc.text('"Bon pour accord"', margin, recapY);
     // Styling Configuration
     const LEGAL_FONT_SIZE = 9;
     const LINE_HEIGHT = 5;
@@ -1947,11 +1588,9 @@ tableData.forEach((row, rowIndex) => {
     const MAX_WIDTH = pageWidth - 2 * margin;
 
     // Draw the professional legal section
-    let currentY = signatureY + 15;
+    let currentY = 200;
 
-    // Add subtle top border
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, currentY - 3, pageWidth - margin, currentY - 3);
+   
     doc.setDrawColor(0);
 
     // Legal text header
@@ -1963,46 +1602,13 @@ tableData.forEach((row, rowIndex) => {
     doc.setFontSize(LEGAL_FONT_SIZE);
     doc.setFont(undefined, "normal");
 
-    legalText.forEach((item) => {
-      const options = {
-        maxWidth: MAX_WIDTH,
-        align: "justify",
-      };
-
-      if (item.style === "paragraph") {
-        // Split long text into multiple lines automatically
-        const lines = doc.splitTextToSize(item.text, MAX_WIDTH);
-        lines.forEach((line) => {
-          doc.text(line, margin, currentY, options);
-          currentY += LINE_HEIGHT;
-        });
-        currentY += 2; // Extra space after paragraph
-      } else if (item.style === "bullet") {
-        // Handle bullet points with proper indentation
-        doc.text("•", margin, currentY);
-        const bulletText = item.text.substring(1); // Remove the '-' from original
-        const bulletLines = doc.splitTextToSize(
-          bulletText,
-          MAX_WIDTH - BULLET_INDENT
-        );
-
-        bulletLines.forEach((line, i) => {
-          const xPos =
-            i === 0 ? margin + BULLET_INDENT : margin + BULLET_INDENT;
-          doc.text(line, xPos, currentY, {
-            maxWidth: MAX_WIDTH - BULLET_INDENT,
-            align: "left",
-          });
-          currentY += LINE_HEIGHT;
-        });
-      }
-    });
-
+  
     // Add signature lines
     currentY += 10;
     doc.setDrawColor(0);
     doc.setFontSize(10);
-
+    doc.setPage(2);
+  addFooter(2);
     const pdfBase64 = doc.output("datauristring");
 
     try {
@@ -2018,71 +1624,32 @@ tableData.forEach((row, rowIndex) => {
         description: command.description,
       });
 
+      const response = await axios.put(`/command/send/${commandId}`);
+
+      // Update the command in the UI
+      setAllCommands((prevCommands) =>
+        prevCommands.map((command) =>
+          command._id === commandId
+            ? {
+                ...command,
+                status: "envoyé",
+                date_envoi: new Date(),
+                date_expiration: new Date(
+                  Date.now() + 180 * 24 * 60 * 60 * 1000
+                ),
+              }
+            : command
+        )
+      );
+
       message.success("Devis envoyé avec succès par email !");
     } catch (error) {
       console.error("Erreur lors de l'envoi par email :", error);
       message.error("Échec de l'envoi du devis.");
     }
   };
-  const handleValidate = async (commandId) => {
-    try {
-      const currentCommand = allCommands.find(
-        (command) => command._id === commandId
-      );
-      if (!currentCommand) {
-        console.error("Commande non trouvée");
-        message.error("Commande non trouvée");
-        return;
-      }
-
-      const isCurrentlyValid = currentCommand.command_type === "commande";
-      const oldNumCommand = currentCommand.numCommand;
-
-      let newNumCommand, newCommandType;
-
-      if (isCurrentlyValid) {
-        // Revert to devis (invalidate)
-        newNumCommand = "D" + oldNumCommand.slice(1);
-        newCommandType = "devis";
-      } else {
-        // Validate to commande
-        newNumCommand = "C" + oldNumCommand.slice(1);
-        newCommandType = "commande";
-      }
-
-      const response = await axios.put(`/command/validate/${commandId}`, {
-        ...currentCommand,
-        command_type: newCommandType,
-        numCommand: newNumCommand,
-        originalNumCommand: oldNumCommand,
-      });
-
-      // Update the command in the UI instead of removing it
-      setAllCommands((prevCommands) =>
-        prevCommands.map((command) =>
-          command._id === commandId
-            ? {
-                ...command,
-                command_type: newCommandType,
-                numCommand: newNumCommand,
-                originalNumCommand: oldNumCommand,
-              }
-            : command
-        )
-      );
-
-      message.success(
-        isCurrentlyValid
-          ? "Devis invalidé avec succès !"
-          : "Devis validée avec succès !"
-      );
-      onValidate();
-    } catch (error) {
-      console.error("Error toggling command status:", error);
-      // Use a generic error message since we can't access isCurrentlyValid here
-      // message.error("❌ Échec de la modification du statut");
-    }
-  };
+ 
+  
 
   function stringToColor(str) {
     // List of distinct Ant Design tag colors
@@ -2109,6 +1676,133 @@ tableData.forEach((row, rowIndex) => {
     return colors[Math.abs(hash) % colors.length];
   }
 
+  const handleUpdateStatus = async (commandId, newStatus) => {
+    try {
+      const response = await axios.put(`/command/update-status/${commandId}`, {
+        status: newStatus,
+      });
+
+      // Update the command in the UI
+      setAllCommands((prevCommands) =>
+        prevCommands.map((command) =>
+          command._id === commandId
+            ? { ...command, status: newStatus }
+            : command
+        )
+      );
+
+      message.success(`Statut mis à jour: ${newStatus}`);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      message.error("Échec de la mise à jour du statut");
+    }
+  };
+
+  const refreshCommandInvoices = async (commandId) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    
+    try {
+      const invoicesResponse = await axios.get(`/command/${commandId}/invoices`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      setAllCommands(prevCommands => 
+        prevCommands.map(command => 
+          command._id === commandId 
+            ? { ...command, invoices: invoicesResponse.data || [] }
+            : command
+        )
+      );
+      
+      return invoicesResponse.data || [];
+    } catch (error) {
+      console.error(`Error refreshing invoices for command ${commandId}:`, error);
+      return [];
+    }
+  };
+
+  // const handleUpdateCommand = async (id) => {
+  //   // Logic to refresh command data
+  //   const updatedCommand = await axios.get(`/command/${id}`);
+  //   setCommand(updatedCommand);
+  // };
+  const handleUpdateCommand = async (id) => {
+    // Refresh the command data and invoices
+    const token = localStorage.getItem("token");
+    try {
+      const updatedCommand = await axios.get(`/command/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      // Also refresh invoices for this command
+      const invoices = await refreshCommandInvoices(id);
+      
+      setAllCommands(prevCommands =>
+        prevCommands.map(command =>
+          command._id === id
+            ? { ...updatedCommand.data, invoices: invoices }
+            : command
+        )
+      );
+    } catch (error) {
+      console.error("Error updating command:", error);
+    }
+  };
+  // Update the handleValidate function to work with the new status system
+  const handleValidate = async (commandId) => {
+    try {
+      await handleUpdateStatus(commandId, "accepté");
+
+      // Also update command_type to "facture" for accepted devis
+      const currentCommand = allCommands.find(
+        (command) => command._id === commandId
+      );
+
+      if (currentCommand) {
+        const isCurrentlyValid = currentCommand.command_type === "facture";
+        const oldNumCommand = currentCommand.numCommand;
+
+        let newNumCommand, newCommandType;
+
+        if (isCurrentlyValid) {
+          // Revert to devis (invalidate)
+          newNumCommand = "D" + oldNumCommand.slice(1);
+          newCommandType = "devis";
+        } else {
+          // Validate to facture
+          newNumCommand = "F" + oldNumCommand.slice(1);
+          newCommandType = "facture";
+        }
+
+        const response = await axios.put(`/command/validate/${commandId}`, {
+          ...currentCommand,
+          command_type: newCommandType,
+          numCommand: newNumCommand,
+          originalNumCommand: oldNumCommand,
+        });
+
+        // Update the command in the UI
+        setAllCommands((prevCommands) =>
+          prevCommands.map((command) =>
+            command._id === commandId
+              ? {
+                  ...command,
+                  command_type: newCommandType,
+                  numCommand: newNumCommand,
+                  originalNumCommand: oldNumCommand,
+                }
+              : command
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error toggling command status:", error);
+    }
+  };
+
+
+
   const columns = [
     {
       title: "Devis",
@@ -2117,23 +1811,23 @@ tableData.forEach((row, rowIndex) => {
       render: (text, record) => {
         const decodedToken = jwtDecode(localStorage.getItem("token"));
         const role = decodedToken?.role;
-
+  
         return (
           <div className="flex items-center gap-2">
             {safeRender(text)}
-            {role === "Admin" && (
+            {role === "Admin" && record.status === "accepté" && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleValidate(record._id);
                 }}
                 className={`px-2 py-1 text-xs rounded-md ${
-                  record.command_type === "commande"
+                  record.command_type === "facture"
                     ? "bg-red-100 text-red-700 hover:bg-red-200"
                     : "bg-green-100 text-green-700 hover:bg-green-200"
                 } transition-colors`}
               >
-                {record.command_type === "commande" ? "Invalider" : "Valider"}
+                {record.command_type === "facture" ? "Invalider" : "Valider"}
               </button>
             )}
           </div>
@@ -2144,18 +1838,184 @@ tableData.forEach((row, rowIndex) => {
     },
     {
       title: "Statut",
-      dataIndex: "command_type",
+      dataIndex: "status",
       key: "status",
-      render: (command_type) => (
-        <Tag color={command_type === "devis" ? "orange" : "green"}>
-          {command_type === "devis" ? "En cours" : "Accepté"}
-        </Tag>
-      ),
+      render: (status, record) => {
+        let color, text;
+
+        switch (status) {
+          case "brouillon":
+            color = "default";
+            text = "Brouillon";
+            break;
+          case "envoyé":
+            color = "blue";
+            text = "Envoyé";
+            break;
+          case "accepté":
+            color = "green";
+            text = "Accepté";
+            break;
+          case "refusé":
+            color = "red";
+            text = "Refusé";
+            break;
+          case "expiré":
+            color = "orange";
+            text = "Expiré";
+            break;
+          default:
+            color = "default";
+            text = status;
+        }
+
+        return (
+          <div className="flex items-center gap-2">
+            <Tag color={color}>{text}</Tag>
+            {record.date_expiration && status === "envoyé" && (
+              <span className="text-xs text-gray-500">
+                Exp: {moment(record.date_expiration).format("DD/MM/YYYY")}
+              </span>
+            )}
+          </div>
+        );
+      },
       filters: [
-        { text: "En cours", value: "devis" },
-        { text: "Accepté", value: "commande" },
+        { text: "Brouillon", value: "brouillon" },
+        { text: "Envoyé", value: "envoyé" },
+        { text: "Accepté", value: "accepté" },
+        { text: "Refusé", value: "refusé" },
+        { text: "Expiré", value: "expiré" },
       ],
-      onFilter: (value, record) => record.command_type === value,
+      onFilter: (value, record) => record.status === value,
+    },
+ 
+    {
+      title: "Facturation",
+      key: "billing",
+      render: (_, record) => {
+        const calculateOverallProgress = () => {
+          if (!record.invoices || !Array.isArray(record.invoices) || record.invoices.length === 0) {
+            return 0;
+          }
+          
+          const totalAmount = record.invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+          const totalPaid = record.invoices.reduce((sum, inv) => 
+            sum + (inv.payments && Array.isArray(inv.payments) ? 
+              inv.payments.reduce((pSum, p) => pSum + (p.amount || 0), 0) : 0), 0);
+          
+          return totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0;
+        };
+        
+        const calculatePaymentDetails = () => {
+          if (!record.invoices || !Array.isArray(record.invoices)) {
+            return { paid: 0, total: 0, paidInvoices: 0, totalInvoices: 0 };
+          }
+          
+          const totalAmount = record.invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+          const totalPaid = record.invoices.reduce((sum, inv) => 
+            sum + (inv.payments && Array.isArray(inv.payments) ? 
+              inv.payments.reduce((pSum, p) => pSum + (p.amount || 0), 0) : 0), 0);
+          
+          const paidInvoices = record.invoices.filter(inv => 
+            inv.payments && Array.isArray(inv.payments) && inv.payments.length > 0
+          ).length;
+          
+          return {
+            paid: totalPaid,
+            total: totalAmount,
+            paidInvoices: paidInvoices,
+            totalInvoices: record.invoices.length
+          };
+        };
+        
+        const overallProgress = calculateOverallProgress();
+        const paymentDetails = calculatePaymentDetails();
+        const hasInvoices = record.invoices && record.invoices.length > 0;
+        const hasBillingPlan = record.billingPlan;
+        
+        return (
+          <Space direction="vertical">
+            {record.status === "accepté" && (
+              <>
+                <Button
+                  size="small"
+                  onClick={() => handleGenerateBillingPlan(record)}
+                  disabled={record.command_type !== "facture"}
+                  style={{ width: '120px' }}
+                >
+                  Plan Facturation
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => handleManageInvoices(record)}
+                  disabled={!record.billingPlan}
+                  style={{ width: '120px' }}
+                >
+                  Gérer Factures
+                </Button>
+                
+                {/* Single progress bar for overall payment progress */}
+                {hasBillingPlan && hasInvoices && (
+                  <Tooltip
+                    title={
+                      <div>
+                        <div><strong>Détails des paiements:</strong></div>
+                        <div>Total facturé: {paymentDetails.total.toFixed(2)}€</div>
+                        <div>Total payé: {paymentDetails.paid.toFixed(2)}€</div>
+                        <div>Factures payées: {paymentDetails.paidInvoices}/{paymentDetails.totalInvoices}</div>
+                      </div>
+                    }
+                  >
+                    <div style={{ 
+                      padding: '6px', 
+                      backgroundColor: '#f9f9f9', 
+                      borderRadius: '6px',
+                      border: '1px solid #e8e8e8',
+                      marginTop: '8px',
+                      width: '120px'
+                    }}>
+                      <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+                        Paiement Global
+                      </div>
+                      <ProgressBar 
+                        progress={overallProgress} 
+                        width={110} 
+                        height={8} 
+                      />
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: '#1890ff', 
+                        marginTop: '4px',
+                        textAlign: 'center',
+                        fontWeight: 'bold'
+                      }}>
+                        {overallProgress.toFixed(0)}%
+                      </div>
+                    </div>
+                  </Tooltip>
+                )}
+                
+                {/* Show message if billing plan exists but no invoices yet */}
+                {hasBillingPlan && !hasInvoices && (
+                  <div style={{ 
+                    fontSize: '10px', 
+                    color: '#999',
+                    padding: '6px',
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: '4px',
+                    marginTop: '8px',
+                    width: '120px',
+                    textAlign: 'center'
+                  }}>
+                    📋 Plan créé
+                  </div>
+                )}
+              </>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: "Date",
@@ -2178,31 +2038,6 @@ tableData.forEach((row, rowIndex) => {
       render: (text) => safeRender(text),
       ellipsis: true,
     },
-    // {
-    //   title: "Référence",
-    //   dataIndex: "reference",
-    //   key: "reference",
-    //   render: (text, record) => (
-    //     <div>
-    //       {record.items?.length > 0 && (
-    //         <div className="flex flex-wrap gap-1 mt-1">
-    //           {record.items.map((item, index) => {
-    //             const colorHash = stringToColor(item.reference);
-    //             return (
-    //               <Tag
-    //                 key={index}
-    //                 color={colorHash}
-    //                 className="text-xs font-medium"
-    //               >
-    //                 {item.reference} <span className="font-bold">(x{item.quantite})</span>
-    //               </Tag>
-    //             );
-    //           })}
-    //         </div>
-    //       )}
-    //     </div>
-    //   ),
-    // },
     {
       title: "Référence",
       dataIndex: "reference",
@@ -2238,7 +2073,6 @@ tableData.forEach((row, rowIndex) => {
         </div>
       ),
     },
-
     {
       title: "Category",
       dataIndex: "category",
@@ -2267,8 +2101,7 @@ tableData.forEach((row, rowIndex) => {
       key: "quantite",
       render: (text) => `${safeRender(text, "0")}`,
     },
-  
-   
+
     {
       title: "Forfait",
       dataIndex: "forfait",
@@ -2328,7 +2161,8 @@ tableData.forEach((row, rowIndex) => {
                     color="#f50"
                     className="text-xs font-medium"
                   >
-                    Prix Unitaire: {parseFloat(item.prixUnitaire || 0).toFixed(2)} €
+                    Prix Unitaire:{" "}
+                    {parseFloat(item.prixUnitaire || 0).toFixed(2)} €
                     {/* {item.quantite > 1 && (
                       <span className="font-bold ml-1">(x{item.quantite})</span>
                     )} */}
@@ -2339,32 +2173,7 @@ tableData.forEach((row, rowIndex) => {
         </div>
       ),
     },
-    // {
-    //   title: "Prix Unitaire HT",
-    //   dataIndex: "prixUnitaire",
-    //   key: "prixUnitaire",
-    //   render: (text) => `${safeRender(text, "0")} €`,
-    // },
-    // {
-    //   title: "Total HT",
-    //   dataIndex: "totalHT",
-    //   key: "totalHT",
-    //   render: (text, record) => (
-    //     <div className="text-right">
-    //       <div>{`${safeRender(text, "0")} €`}</div>
-    //       {record.items?.length > 0 ? (
-    //         <div className="text-xs text-gray-500">
-    //           {record.items.map((item) => item.montantHT + "€").join(" + ")}
-    //         </div>
-    //       ) : (
-    //         <div className="text-xs text-gray-500">
-    //           {safeRender(text, "0")} €
-    //         </div>
-    //       )}
-    //     </div>
-    //   ),
-    //   sorter: (a, b) => (a.totalHT || 0) - (b.totalHT || 0),
-    // },
+
     {
       title: "Total HT",
       dataIndex: "totalHT",
@@ -2372,39 +2181,43 @@ tableData.forEach((row, rowIndex) => {
       render: (text, record) => {
         // Calculate total from items if they exist
         const itemsTotal = record.items?.reduce(
-          (sum, item) => sum + (parseFloat(item.prixUnitaire || 0) * parseInt(item.quantite || 1)),
+          (sum, item) =>
+            sum +
+            parseFloat(item.prixUnitaire || 0) * parseInt(item.quantite || 1),
           0
         );
-    
+
         // Use either the calculated itemsTotal or the root-level prixUnitaire * quantite
-        const calculatedTotal = itemsTotal 
-          ? itemsTotal 
-          : parseFloat(record.prixUnitaire || 0) * parseInt(record.quantite || 1);
-    
+        const calculatedTotal = itemsTotal
+          ? itemsTotal
+          : parseFloat(record.prixUnitaire || 0) *
+            parseInt(record.quantite || 1);
+
         // Fallback to the API-provided totalHT if calculations don't make sense
-        const displayTotal = itemsTotal || record.prixUnitaire 
-          ? calculatedTotal 
-          : parseFloat(text || 0);
-    
+        const displayTotal =
+          itemsTotal || record.prixUnitaire
+            ? calculatedTotal
+            : parseFloat(text || 0);
+
         return (
           <div className="text-right">
             {/* Main Total */}
-            <div className="font-medium">
-              {displayTotal.toFixed(2)} €
-            </div>
-    
+            <div className="font-medium">{displayTotal.toFixed(2)} €</div>
+
             {/* Breakdown */}
             {record.items?.length > 0 ? (
               <div className="text-xs text-gray-500">
                 {record.items.map((item, i) => (
                   <div key={`item-ht-${i}`}>
-                    {item.prixUnitaire} € × {item.quantite} = {(item.prixUnitaire * item.quantite).toFixed(2)} €
+                    {item.prixUnitaire} € × {item.quantite} ={" "}
+                    {(item.prixUnitaire * item.quantite).toFixed(2)} €
                   </div>
                 ))}
               </div>
             ) : record.prixUnitaire ? (
               <div className="text-xs text-gray-500">
-                {record.prixUnitaire} € × {record.quantite} = {calculatedTotal.toFixed(2)} €
+                {record.prixUnitaire} € × {record.quantite} ={" "}
+                {calculatedTotal.toFixed(2)} €
               </div>
             ) : null}
           </div>
@@ -2414,7 +2227,9 @@ tableData.forEach((row, rowIndex) => {
         // Get comparable values for both records
         const getValue = (record) => {
           const itemsTotal = record.items?.reduce(
-            (sum, item) => sum + (parseFloat(item.prixUnitaire || 0) * parseInt(item.quantite || 1)),
+            (sum, item) =>
+              sum +
+              parseFloat(item.prixUnitaire || 0) * parseInt(item.quantite || 1),
             0
           );
           return itemsTotal || parseFloat(record.totalHT || 0);
@@ -2422,265 +2237,177 @@ tableData.forEach((row, rowIndex) => {
         return getValue(a) - getValue(b);
       },
     },
-    // {
-    //   title: "Total TVA",
-    //   dataIndex: "totalTVA",
-    //   key: "totalTVA",
-    //   render: (text, record) => (
-    //     <div className="text-right">
-    //       <div>{`${safeRender(text, "0")} €`}</div>
-    //       {record.items?.length > 0 ? (
-    //         <div className="text-xs text-gray-500">
-    //           {record.items.map((item) => item.montantTVA + "€").join(" + ")}
-    //         </div>
-    //       ) : (
-    //         <div className="text-xs text-gray-500">
-    //           {safeRender(text, "0")} €
-    //         </div>
-    //       )}
-    //     </div>
-    //   ),
-    //   sorter: (a, b) => (a.totalTVA || 0) - (b.totalTVA || 0),
-    // },
-    // {
-    //   title: "Prix Total TTC",
-    //   dataIndex: "totalTTC",
-    //   key: "totalTTC",
-    //   render: (text, record) => (
-    //     <div className="text-right">
-    //       <div className="font-medium">{`${safeRender(text, "0")} €`}</div>
-    //       {record.items?.length > 0 ? (
-    //         <div className="text-xs text-gray-500">
-    //           {record.items.map((item) => item.montantTTC + "€").join(" + ")}
-    //         </div>
-    //       ) : (
-    //         <div className="text-xs text-gray-500">
-    //           {safeRender(text, "0")} €
-    //         </div>
-    //       )}
-    //     </div>
-    //   ),
-    //   sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
-    // },
 
-    // {
-    //   title: "Total TVA",
-    //   dataIndex: "totalTVA",
-    //   key: "totalTVA",
-    //   render: (text, record) => {
-    //     // Calculate TVA from items if they exist
-    //     const itemsTVA = record.items?.reduce(
-    //       (sum, item) => sum + (parseFloat(item.montantTVA || 0)),
-    //       0
-    //     );
-    
-    //     // Use either the calculated itemsTVA or the root-level totalTVA
-    //     const displayTVA = itemsTVA !== undefined 
-    //       ? itemsTVA 
-    //       : parseFloat(text || 0);
-    
-    //     return (
-    //       <div className="text-right">
-    //         {/* Main TVA */}
-    //         <div className="font-medium">
-    //           {displayTVA.toFixed(2)} €
-    //         </div>
-    
-    //         {/* Breakdown */}
-    //         {record.items?.length > 0 ? (
-    //           <div className="text-xs text-gray-500">
-    //             {record.items.map((item, i) => (
-    //               item.montantTVA ? (
-    //                 <div key={`item-tva-${i}`}>
-    //                   {item.montantTVA.toFixed(2)} €
-    //                   {item.tva ? ` (${item.tva}%)` : ''}
-    //                 </div>
-    //               ) : null
-    //             ))}
-    //           </div>
-    //         ) : null}
-    //       </div>
-    //     );
-    //   },
-    //   sorter: (a, b) => {
-    //     const getTVA = (record) => {
-    //       const itemsTVA = record.items?.reduce(
-    //         (sum, item) => sum + (parseFloat(item.montantTVA || 0)),
-    //         0
-    //       );
-    //       return itemsTVA || parseFloat(record.totalTVA || 0);
-    //     };
-    //     return getTVA(a) - getTVA(b);
-    //   },
-    // },
-    // {
-    //   title: "Prix Total TTC",
-    //   dataIndex: "totalTTC",
-    //   key: "totalTTC",
-    //   render: (text, record) => {
-    //     // Calculate from items if they exist
-    //     const itemsTTC = record.items?.reduce(
-    //       (sum, item) => sum + (parseFloat(item.montantTTC || 0)),
-    //       0
-    //     );
-    
-    //     // Calculate from HT + TVA if no items but both exist
-    //     const calculatedTTC = !record.items?.length && record.totalHT && record.totalTVA
-    //       ? parseFloat(record.totalHT) + parseFloat(record.totalTVA)
-    //       : null;
-    
-    //     // Use the most appropriate value
-    //     const displayTTC = itemsTTC !== undefined 
-    //       ? itemsTTC 
-    //       : calculatedTTC !== null 
-    //         ? calculatedTTC 
-    //         : parseFloat(text || 0);
-    
-    //     return (
-    //       <div className="text-right">
-    //         {/* Main TTC */}
-    //         <div className="font-medium">
-    //           {displayTTC.toFixed(2)} €
-    //         </div>
-    
-    //         {/* Breakdown */}
-    //         {record.items?.length > 0 ? (
-    //           <div className="text-xs text-gray-500">
-    //             {record.items.map((item, i) => (
-    //               <div key={`item-ttc-${i}`}>
-    //                 {item.montantTTC.toFixed(2)} €
-    //               </div>
-    //             ))}
-    //           </div>
-    //         ) : calculatedTTC ? (
-    //           <div className="text-xs text-gray-500">
-    //             HT: {record.totalHT} € + TVA: {record.totalTVA} €
-    //           </div>
-    //         ) : null}
-    //       </div>
-    //     );
-    //   },
-    //   sorter: (a, b) => {
-    //     const getTTC = (record) => {
-    //       const itemsTTC = record.items?.reduce(
-    //         (sum, item) => sum + (parseFloat(item.montantTTC || 0)),
-    //         0
-    //       );
-    //       return itemsTTC || parseFloat(record.totalTTC || 0);
-    //     };
-    //     return getTTC(a) - getTTC(b);
-    //   },
-    // },
-    // For Total TVA column
-{
-  title: "Total TVA",
-  dataIndex: "totalTVA",
-  key: "totalTVA",
-  render: (text, record) => {
-    // Get TVA from either items or root level
-    const tvaSource = record.items?.length ? 
-      record.items.reduce((sum, item) => sum + (item.montantTVA || 0), 0) : 
-      record.totalTVA || 0;
+    {
+      title: "Total TVA",
+      dataIndex: "totalTVA",
+      key: "totalTVA",
+      render: (text, record) => {
+        // Get TVA from either items or root level
+        const tvaSource = record.items?.length
+          ? record.items.reduce((sum, item) => sum + (item.montantTVA || 0), 0)
+          : record.totalTVA || 0;
 
-    return (
-      <div className="text-right">
-        <div className="font-medium">
-          {parseFloat(tvaSource).toFixed(2)} €
-        </div>
-        {record.items?.length > 0 && (
-          <div className="text-xs text-gray-500">
-            {record.items
-              .filter(item => item.montantTVA)
-              .map((item, i) => (
-                <div key={`tva-detail-${i}`}>
-                  {item.montantTVA.toFixed(2)} € {item.tva && `(${item.tva}%)`}
-                </div>
-              ))}
-          </div>
-        )}
-      </div>
-    );
-  },
-  sorter: (a, b) => {
-    const getTva = (record) => 
-      record.items?.reduce((sum, item) => sum + (item.montantTVA || 0), 0) || 
-      parseFloat(record.totalTVA || 0);
-    return getTva(a) - getTva(b);
-  }
-},
-
-
-{
-  title: "Prix Total TTC",
-  dataIndex: "totalTTC",
-  key: "totalTTC",
-  render: (text, record) => {
-    // Get TTC from the most reliable source
-    const ttcSource = record.items?.length ?
-      record.items.reduce((sum, item) => sum + (item.montantTTC || 0), 0) :
-      record.totalTTC || 
-      (parseFloat(record.totalHT || 0) + parseFloat(record.totalTVA || 0));
-
-    return (
-      <div className="text-right">
-        <div className="font-medium">
-          {parseFloat(ttcSource).toFixed(2)} €
-        </div>
-        {record.items?.length > 0 ? (
-          <div className="text-xs text-gray-500">
-            {record.items
-              .filter(item => item.montantTTC)
-              .map((item, i) => (
-                <div key={`ttc-detail-${i}`}>
-                  {item.montantTTC.toFixed(2)} €
-                </div>
-              ))}
-          </div>
-        ) : (
-          !record.items?.length && record.totalHT && record.totalTVA && (
-            <div className="text-xs text-gray-500">
-              HT: {record.totalHT} € + TVA: {record.totalTVA} €
+        return (
+          <div className="text-right">
+            <div className="font-medium">
+              {parseFloat(tvaSource).toFixed(2)} €
             </div>
-          )
-        )}
-      </div>
-    );
-  },
-  sorter: (a, b) => {
-    const getTtc = (record) => 
-      record.items?.reduce((sum, item) => sum + (item.montantTTC || 0), 0) || 
-      parseFloat(record.totalTTC || 0) ||
-      (parseFloat(record.totalHT || 0) + parseFloat(record.totalTVA || 0));
-    return getTtc(a) - getTtc(b);
-  }
-},
+            {record.items?.length > 0 && (
+              <div className="text-xs text-gray-500">
+                {record.items
+                  .filter((item) => item.montantTVA)
+                  .map((item, i) => (
+                    <div key={`tva-detail-${i}`}>
+                      {item.montantTVA.toFixed(2)} €{" "}
+                      {item.tva && `(${item.tva}%)`}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        );
+      },
+      sorter: (a, b) => {
+        const getTva = (record) =>
+          record.items?.reduce(
+            (sum, item) => sum + (item.montantTVA || 0),
+            0
+          ) || parseFloat(record.totalTVA || 0);
+        return getTva(a) - getTva(b);
+      },
+    },
+
+    {
+      title: "Prix Total TTC",
+      dataIndex: "totalTTC",
+      key: "totalTTC",
+      render: (text, record) => {
+        // Get TTC from the most reliable source
+        const ttcSource = record.items?.length
+          ? record.items.reduce((sum, item) => sum + (item.montantTTC || 0), 0)
+          : record.totalTTC ||
+            parseFloat(record.totalHT || 0) + parseFloat(record.totalTVA || 0);
+
+        return (
+          <div className="text-right">
+            <div className="font-medium">
+              {parseFloat(ttcSource).toFixed(2)} €
+            </div>
+            {record.items?.length > 0 ? (
+              <div className="text-xs text-gray-500">
+                {record.items
+                  .filter((item) => item.montantTTC)
+                  .map((item, i) => (
+                    <div key={`ttc-detail-${i}`}>
+                      {item.montantTTC.toFixed(2)} €
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              !record.items?.length &&
+              record.totalHT &&
+              record.totalTVA && (
+                <div className="text-xs text-gray-500">
+                  HT: {record.totalHT} € + TVA: {record.totalTVA} €
+                </div>
+              )
+            )}
+          </div>
+        );
+      },
+      sorter: (a, b) => {
+        const getTtc = (record) =>
+          record.items?.reduce(
+            (sum, item) => sum + (item.montantTTC || 0),
+            0
+          ) ||
+          parseFloat(record.totalTTC || 0) ||
+          parseFloat(record.totalHT || 0) + parseFloat(record.totalTVA || 0);
+        return getTtc(a) - getTtc(b);
+      },
+    },
     {
       title: "Actions",
       key: "actions",
-      render: (_, record) => (
-        <Space size="middle">
-          <Button
-            icon={<EditOutlined />}
-            onClick={(e) => handleEdit(record, e)}
-          />
-          <Button
-            icon={<FilePdfOutlined />}
-            onClick={(e) => handleDownload(record._id, e)}
-          />
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={(e) => handleDelete(record._id, e)}
-          />
-          <Button
-            icon={<SendOutlined />}
-            onClick={(e) => handleSendPdf(record._id, e)}
-            title="Envoyer le devis"
-          />
-        </Space>
-      ),
+      render: (_, record) => {
+        const decodedToken = jwtDecode(localStorage.getItem("token"));
+        const role = decodedToken?.role;
+
+        return (
+          <Space size="middle">
+            <Button
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(record, e);
+              }}
+              disabled={record.status === "accepté"}
+              title={
+                record.status === "accepté"
+                  ? "Devis verrouillé"
+                  : "Modifier le devis"
+              }
+            />
+            <Button
+              icon={<FilePdfOutlined />}
+              onClick={(e) => {
+                e.stopPropagation(); // Add this line
+                handleDownload(record._id, e);
+              }}
+              title="Télécharger le devis"
+            />
+
+            {/* Send button - only for brouillon status */}
+            {record.status === "brouillon" && (
+              <Button
+                icon={<SendOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation(); // Add this line
+                  handleSendPdf(record._id, e);
+                }}
+                title="Envoyer le devis"
+              />
+            )}
+
+            {/* Status management buttons - for Admin */}
+            {role === "Admin" && record.status === "envoyé" && (
+              <>
+                <Button
+                  icon={<CheckOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Add this line
+                    handleUpdateStatus(record._id, "accepté");
+                  }}
+                  title="Marquer comme accepté"
+                />
+                <Button
+                  icon={<CloseOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Add this line
+                    handleUpdateStatus(record._id, "refusé");
+                  }}
+                  title="Marquer comme refusé"
+                  danger
+                />
+              </>
+            )}
+
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation(); // Add this line
+                handleDelete(record._id, e);
+              }}
+            />
+          </Space>
+        );
+      },
     },
   ];
+
+  
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -2689,12 +2416,6 @@ tableData.forEach((row, rowIndex) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <Statistic title="Total Devis" value={stats.totalCommands} />
-          {/* <Button
-            className="w-full mt-4 bg-blue-500 text-white font-bold"
-            onClick={() => setDevisModalVisible(true)}
-          >
-            Création Devis
-          </Button> */}
         </Card>
         <Card>
           <Statistic title="Total HT" value={stats.totalHT} suffix="€" />
@@ -2736,20 +2457,47 @@ tableData.forEach((row, rowIndex) => {
               </div>
             ),
           }))}
-          // dataSource={allCommands}
           dataSource={filteredCommands}
+          onRow={(record) => ({
+            onClick: (e) => {
+              if (
+                e.target.tagName !== "BUTTON" &&
+                !e.target.closest("button")
+              ) {
+                window.location.href = `/lead/${record.lead}`;
+              }
+            },
+            style: { cursor: "pointer" },
+          })}
           rowKey="_id"
           loading={loading}
           pagination={{ pageSize: 10 }}
           scroll={{ x: true }}
           bordered
-          onRow={(record) => ({
-            onClick: () => (window.location.href = `/lead/${record.lead}`),
-            style: { cursor: "pointer" },
-          })}
         />
       </div>
-  
+      {selectedCommand && (
+        <>
+          <GenerateBillingPlan
+            command={selectedCommand}
+            visible={billingModalVisible}
+            onCancel={() => setBillingModalVisible(false)}
+            onSuccess={fetchCommands}
+          />
+          <Modal
+            title={`Gestion des Factures - ${selectedCommand.numCommand}`}
+            visible={invoicesModalVisible}
+            onCancel={() => setInvoicesModalVisible(false)}
+            width={1000}
+            footer={null}
+          >
+            <InvoicesManagement command={selectedCommand}    onUpdateCommand={() => {
+      handleUpdateCommand(selectedCommand._id);
+      fetchCommands(); // Also refresh the entire list
+    }} />
+          </Modal>
+        </>
+      )}
     </div>
   );
 };

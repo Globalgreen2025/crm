@@ -37,7 +37,7 @@ const ListLeads = () => {
   const [activeFilter, setActiveFilter] = useState("prospect");
   const [filteredData, setFilteredData] = useState([]);
   const [form] = Form.useForm();
-  const TVA = 10;
+  const TVA = 5.5;
   const [produits, setProduits] = useState([]);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
 
@@ -186,7 +186,7 @@ const ListLeads = () => {
     return `${prefix}${randomNum}`;
   };
   const handleCommandTypeChange = (value) => {
-    const prefix = value === "devis" ? "D" : "C";
+    const prefix = value === "devis" ? "D" : "F";
     const randomNumber = generateRandomNumber(prefix);
     form.setFieldsValue({
       numCommand: randomNumber,
@@ -563,7 +563,7 @@ const ListLeads = () => {
                 className="w-full flex justify-center items-center gap-6"
               >
                 <Radio value="devis">Devis</Radio>
-                <Radio value="commande">Contrat</Radio>
+                <Radio value="facture">Contrat</Radio>
               </Radio.Group>
             </Form.Item>
           </div>

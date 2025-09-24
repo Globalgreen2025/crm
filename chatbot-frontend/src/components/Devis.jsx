@@ -55,7 +55,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
 
       // Replace only the first character from D to C
       const oldNumCommand = currentCommand.numCommand;
-      const newNumCommand = "C" + oldNumCommand.slice(1);
+      const newNumCommand = "F" + oldNumCommand.slice(1);
 
       console.log("Old numCommand:", oldNumCommand);
       console.log("New numCommand:", newNumCommand);
@@ -63,7 +63,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       // Update the command via API
       const response = await axios.put(`/command/validate/${commandId}`, {
         ...currentCommand,
-        command_type: "commande",
+        command_type: "facture", // Change command type to 'facture'
         numCommand: newNumCommand,
         originalNumCommand: oldNumCommand,
       });
@@ -397,7 +397,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
             <Descriptions.Item label="Total HT">
               {selectedCommand.totalHT} €
             </Descriptions.Item>
-            <Descriptions.Item label="Total TVA (10%)">
+            <Descriptions.Item label="Total TVA (5.5%)">
               {selectedCommand.totalTVA} €
             </Descriptions.Item>
             <Descriptions.Item label="Total TTC">

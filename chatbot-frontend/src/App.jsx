@@ -34,13 +34,10 @@ import TicketDetail from "./pages/Admin/TicketDetail";
 import Fournisseurs from "./pages/Fournisseurs";
 
 
+
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
 axios.defaults.withCredentials = true;
-// export const callApiClient = axios.create({
-//   baseURL: import.meta.env.VITE_CALL_API_BASE_URL,
-//   withCredentials: true,
-// });
-// console.log("VITE_CALL_API_BASE_URL:", import.meta.env.VITE_CALL_API_BASE_URL);
+
 
 function App() {
   
@@ -63,6 +60,7 @@ function App() {
             <Route path="/create-bannières/:id" element={<CreateBannières />} />
             <Route path="/create-produit" element={<CreatePrograms />} />
             <Route path="/create-produit/:id" element={<CreatePrograms />} />
+
 
             <Route path="/CalendrierCommerciale" element={<MyCalendar />} />
             <Route path="/Devis" element={<TéléchargerDevis />} />

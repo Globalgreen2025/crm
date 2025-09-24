@@ -96,7 +96,7 @@ nav a {
 
 /* Reduce the font size for table headers */
 .ant-table th {
-  font-size: 2px; /* Adjust the size for header titles */
+  font-size: 14px; /* Adjust the size for header titles */
 }
 
 /* Optionally reduce the padding for a more compact table */
@@ -115,16 +115,18 @@ nav a {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Center ONLY the header titles */
 .ant-table-thead > tr > th {
-  background-color: #fafafa;
-  color: #333;
-  font-weight: bold;
   text-align: center;
-  border-bottom: 2px solid #e0e0e0;
+  font-size: 14px;
+  font-weight: 600;
 }
 
+
 .ant-table-tbody > tr > td {
-  text-align: center;
+  text-align: start;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .ant-pagination {
@@ -390,4 +392,113 @@ nav a {
 .crm-modal .ant-modal-footer {
   border-top: 1px solid #f0f0f0;
   padding: 16px 24px;
+}
+
+
+.professional-billing-modal .ant-modal-content {
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.professional-billing-modal .ant-modal-header {
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(135deg, #f6f9fc 0%, #eef1f5 100%);
+  border-bottom: 1px solid #e8e8e8;
+  padding: 20px 24px;
+}
+
+.professional-billing-modal .ant-modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.professional-billing-modal .ant-modal-body {
+  padding: 24px;
+}
+
+.professional-billing-modal .ant-steps {
+  margin-bottom: 32px;
+}
+
+.professional-billing-modal .ant-steps-item-process .ant-steps-item-icon {
+  background: #1890ff;
+  border-color: #1890ff;
+}
+
+.professional-billing-modal .ant-card {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  border: 1px solid #e8e8e8;
+}
+
+.professional-billing-modal .ant-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.professional-billing-modal .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+  border-radius: 8px 8px 0 0;
+}
+
+.professional-billing-modal .ant-btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+  border-radius: 6px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.professional-billing-modal .ant-btn-primary:hover,
+.professional-billing-modal .ant-btn-primary:focus {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+}
+
+.professional-billing-modal .ant-input,
+.professional-billing-modal .ant-picker {
+  border-radius: 6px;
+  border: 1px solid #d9d9d9;
+}
+
+.professional-billing-modal .ant-input:focus,
+.professional-billing-modal .ant-picker-focused {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.professional-billing-modal .installment-card {
+  background: #fafafa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px dashed #d9d9d9;
+}
+
+.professional-billing-modal .total-display {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 16px;
+}
+
+.professional-billing-modal .percentage-warning {
+  color: #ff4d4f;
+  font-weight: 500;
+}
+
+.professional-billing-modal .plan-summary {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.professional-billing-modal .amount-highlight {
+  color: #52c41a;
+  font-weight: 600;
+  font-size: 16px;
 }

@@ -46,7 +46,7 @@ const Leads = () => {
   const [formVisible, setFormVisible] = useState(false);
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
-  const TVA = 10;
+  const TVA = 5.5;
   const [produits, setProduits] = useState([]);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [previewImage, setPreviewImage] = useState(false);
@@ -94,7 +94,7 @@ const Leads = () => {
   };
 
   const handleCommandTypeChange = (value) => {
-    const prefix = value === "devis" ? "D" : "C";
+    const prefix = value === "devis" ? "D" : "F";
     const randomNumber = generateRandomNumber(prefix);
     form.setFieldsValue({
       numCommand: randomNumber,
@@ -249,25 +249,7 @@ const Leads = () => {
     }
   };
 
-  const calculateTotals = (quantity, unitPrice) => {
-    const qty = parseFloat(quantity) || 0;
-    const price = parseFloat(unitPrice) || 0;
-    const forfait = parseFloat(form.getFieldValue("forfait")) || 0;
-    const tvaRate = parseFloat(form.getFieldValue("TVA")) || 0;
-
-    const baseHT = qty * price;
-    const totalHT = baseHT;
-    const totalTVA = totalHT * (tvaRate / 100);
-    const totalTTC = totalHT + totalTVA;
-
-    form.setFieldsValue({
-      totalHT: parseFloat(totalHT.toFixed(2)),
-      totalTVA: parseFloat(totalTVA.toFixed(2)),
-      totalTTC: parseFloat(totalTTC.toFixed(2)),
-      quantite: qty,
-      prixUnitaire: price,
-    });
-  };
+ 
 
   const columns = [
     {
