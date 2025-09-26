@@ -31,7 +31,10 @@ const CreateCommand = () => {
     const randomNum = Math.floor(100000 + Math.random() * 900000); // generates 6 random digits
     return `${prefix}${randomNum}`;
   };
-
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || value === '') return '0.00';
+    return parseFloat(value).toFixed(2);
+  };
   useEffect(() => {
     const fetchCartData = async () => {
       const token = localStorage.getItem("token");
@@ -67,11 +70,15 @@ const CreateCommand = () => {
           );
 
           form.setFieldsValue({
+            // quantite: totals.quantite,
+            // // Add other fields you want to populate:
+            // totalHT: totals.totalHT,
+            // totalTVA: totals.totalTVA,
+            // totalTTC: totals.totalTTC,
             quantite: totals.quantite,
-            // Add other fields you want to populate:
-            totalHT: totals.totalHT,
-            totalTVA: totals.totalTVA,
-            totalTTC: totals.totalTTC,
+            totalHT: formatCurrency(totals.totalHT),
+            totalTVA: formatCurrency(totals.totalTVA),
+            totalTTC: formatCurrency(totals.totalTTC),
             marge: totals.marge,
           });
         }
@@ -113,9 +120,12 @@ const CreateCommand = () => {
             ville: commandData.ville,
             adresse: commandData.adresse,
             quantite: commandData.quantite,
-            montantHT: commandData.montantHT || 0,
-            totalTTC: commandData.totalTTC || 0,
-            totalTVA: commandData.totalTVA || 0,
+            // montantHT: commandData.montantHT || 0,
+            // totalTTC: commandData.totalTTC || 0,
+            // totalTVA: commandData.totalTVA || 0,
+            montantHT: formatCurrency(commandData.montantHT || 0),
+            totalTTC: formatCurrency(commandData.totalTTC || 0),
+            totalTVA: formatCurrency(commandData.totalTVA || 0),
             numCommand: commandData.numCommand,
             // marge: commandData.marge,
           });

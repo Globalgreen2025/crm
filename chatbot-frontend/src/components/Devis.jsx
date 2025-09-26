@@ -167,31 +167,6 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       key: "quantite",
       render: (text) => `${text}`, // Formatting the price
     },
-
-    // {
-    //   title: "Prix HT",
-    //   dataIndex: "totalHT",
-    //   key: "totalHT",
-    //   render: (text) => `${text} €`, // Formatting the price
-    // },
-    // {
-    //   title: "TVA (10%)",
-    //   dataIndex: "totalTVA",
-    //   key: "totalTVA",
-    //   render: (text) => `${text} €`, // Formatting the TVA
-    // },
-    // {
-    //   title: 'Marge',
-    //   dataIndex: 'marge',
-    //   key: 'marge',
-    //   render: (text) => `${text} €`,
-    // },
-    // {
-    //   title: "Prix TTC",
-    //   dataIndex: "totalTTC",
-    //   key: "totalTTC",
-    //   render: (text) => `${text} €`, // Formatting the price
-    // },
         {
               title: "Forfait",
               dataIndex: "forfait",
@@ -236,7 +211,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
                   <div>{`${safeRender(text, "0")} €`}</div>
                   {record.items?.length > 0 ? (
                     <div className="text-xs text-gray-500">
-                      {record.items.map(item => item.montantHT + '€').join(' + ')}
+                      {record.items.map(item => item.montantHT.toFixed(2) + '€').join(' + ')}
                     </div>
                   ) : (
                     <div className="text-xs text-gray-500">
@@ -256,7 +231,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
                   <div>{`${safeRender(text, "0")} €`}</div>
                   {record.items?.length > 0 ? (
                     <div className="text-xs text-gray-500">
-                      {record.items.map(item => item.montantTVA + '€').join(' + ')}
+                      {record.items.map(item => item.montantTVA.toFixed(2) + '€').join(' + ')}
                     </div>
                   ) : (
                     <div className="text-xs text-gray-500">
@@ -276,7 +251,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
                   <div className="font-medium">{`${safeRender(text, "0")} €`}</div>
                   {record.items?.length > 0 ? (
                     <div className="text-xs text-gray-500">
-                      {record.items.map(item => item.montantTTC + '€').join(' + ')}
+                      {record.items.map(item => item.montantTTC.toFixed(2) + '€').join(' + ')}
                     </div>
                   ) : (
                     <div className="text-xs text-gray-500">
@@ -285,7 +260,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
                   )}
                 </div>
               ),
-              sorter: (a, b) => (a.totalTTC || 0) - (b.totalTTC || 0),
+              sorter: (a, b) => (a.totalTTC.toFixed(2) || 0) - (b.totalTTC.toFixed(2) || 0),
             },
     {
       title: "Date de Création",
