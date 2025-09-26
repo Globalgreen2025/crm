@@ -2720,42 +2720,42 @@ const handleDownload = (commandId, e) => {
         </div>
       ),
     },
-    {
-      title: "Prix Unitaire",
-      dataIndex: "prixUnitaire",
-      key: "prixUnitaire",
-      render: (text, record) => (
-        <div className="flex flex-col gap-1">
-          {/* Main Forfait Tag - Only shows if value exists */}
-          {text && parseFloat(text) !== 0 && (
-            <Tag color="#f50" className="text-xs font-medium">
-              prix Unitaire: {parseFloat(text).toFixed(2)} €
-            </Tag>
-          )}
+    // {
+    //   title: "Prix Unitaire",
+    //   dataIndex: "prixUnitaire",
+    //   key: "prixUnitaire",
+    //   render: (text, record) => (
+    //     <div className="flex flex-col gap-1">
+    //       {/* Main Forfait Tag - Only shows if value exists */}
+    //       {text && parseFloat(text) !== 0 && (
+    //         <Tag color="#f50" className="text-xs font-medium">
+    //           prix Unitaire: {parseFloat(text).toFixed(2)} €
+    //         </Tag>
+    //       )}
 
-          {/* Item-Level Forfaits - Only shows if items with forfait exist */}
-          {record.items?.some((item) => item.forfait) && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {record.items
-                .filter((item) => item.prixUnitaire)
-                .map((item, index) => (
-                  <Tag
-                    key={`prixUnitaire-${index}`}
-                    color="#f50"
-                    className="text-xs font-medium"
-                  >
-                    Prix Unitaire:{" "}
-                    {parseFloat(item.prixUnitaire || 0).toFixed(2)} €
-                    {/* {item.quantite > 1 && (
-                      <span className="font-bold ml-1">(x{item.quantite})</span>
-                    )} */}
-                  </Tag>
-                ))}
-            </div>
-          )}
-        </div>
-      ),
-    },
+    //       {/* Item-Level Forfaits - Only shows if items with forfait exist */}
+    //       {record.items?.some((item) => item.forfait) && (
+    //         <div className="flex flex-wrap gap-1 mt-1">
+    //           {record.items
+    //             .filter((item) => item.prixUnitaire)
+    //             .map((item, index) => (
+    //               <Tag
+    //                 key={`prixUnitaire-${index}`}
+    //                 color="#f50"
+    //                 className="text-xs font-medium"
+    //               >
+    //                 Prix Unitaire:{" "}
+    //                 {parseFloat(item.prixUnitaire || 0).toFixed(2)} €
+    //                 {item.quantite > 1 && (
+    //                   <span className="font-bold ml-1">(x{item.quantite})</span>
+    //                 )}
+    //               </Tag>
+    //             ))}
+    //         </div>
+    //       )}
+    //     </div>
+    //   ),
+    // },
 
     {
       title: "Total HT",

@@ -894,8 +894,8 @@ const factureColumns = [
               title: 'Reste à Payer',
               key: 'remainingAmount',
               render: (_, record) => {
-                const total = record.totalTTC || 0;
-                const paid = record.actualPaidAmount || record.paidAmount || 0;
+                const total = record.totalTTC.toFixed(2) || 0;
+                const paid = record.actualPaidAmount.toFixed(2) || record.paidAmount.toFixed(2) || 0;
                 const remaining = total - paid;
                 return `${remaining.toFixed(2)} €`;
               },
@@ -1073,8 +1073,8 @@ const factureColumns = [
               <Statistic
                 title="Reste à Payer"
                 value={factures.reduce((sum, f) => {
-                  const total = f.totalTTC || 0;
-                  const paid = f.actualPaidAmount || f.paidAmount || 0;
+                  const total = f.totalTTC.toFixed(2) || 0;
+                  const paid = f.actualPaidAmount.toFixed(2) || f.paidAmount.toFixed(2) || 0;
                   return sum + (total - paid);
                 }, 0)}
                 precision={2}
