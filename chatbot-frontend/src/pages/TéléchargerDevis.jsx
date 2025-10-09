@@ -2620,7 +2620,7 @@ if (row.isForfait) {
         return (
           <div className="flex items-center gap-2">
             {safeRender(text)}
-            {role === "Admin" && record.status === "accepté" && (
+            {record.status === "accepté" && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -3221,7 +3221,7 @@ if (row.isForfait) {
             )}
 
             {/* Status management buttons - for Admin */}
-            {role === "Admin" && record.status === "envoyé" && (
+            {record.status === "envoyé" && (
               // <>
               //   <Button
               //     icon={<CheckOutlined />}

@@ -534,15 +534,14 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       const response = await axios.get(`/command/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("Response dataaaaa:", response.data);
       const commandsData = response?.data;
-      const decodedToken = token ? jwtDecode(token) : null;
-      const currentUserId = decodedToken?.userId;
+      // const decodedToken = token ? jwtDecode(token) : null;
+      // const currentUserId = decodedToken?.userId;
   
-      const filterecommand = commandsData.filter(
-        (cmd) => cmd.session === currentUserId
-      );
-      const filteredCommands = filterecommand.filter(
+      // const filterecommand = commandsData.filter(
+      //   (cmd) => cmd.session === currentUserId
+      // );
+      const filteredCommands = commandsData.filter(
         (command) =>
           command.command === "devis" && command.lead.toString() === id
       );
