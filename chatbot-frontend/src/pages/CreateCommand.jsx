@@ -80,6 +80,7 @@ const CreateCommand = () => {
             totalTVA: formatCurrency(totals.totalTVA),
             totalTTC: formatCurrency(totals.totalTTC),
             marge: totals.marge,
+            
           });
         }
       } catch (error) {
@@ -127,6 +128,8 @@ const CreateCommand = () => {
             totalTTC: formatCurrency(commandData.totalTTC || 0),
             totalTVA: formatCurrency(commandData.totalTVA || 0),
             numCommand: commandData.numCommand,
+            naturePrestations: commandData.naturePrestations,
+            note: commandData.note,
             // marge: commandData.marge,
           });
           const currentValues = form.getFieldsValue();
@@ -170,88 +173,272 @@ const CreateCommand = () => {
     };
     fetchLead();
   }, [id]);
-
   const handleFormSubmit = async (values) => {
     try {
       const token = localStorage.getItem("token");
       const decodedToken = token ? jwtDecode(token) : null;
       const commercialName = decodedToken?.name || decodedToken?.commercialName;
-
+  
       if (!decodedToken) {
         alert("User not authenticated");
         return;
       }
-
+  
       const userId = decodedToken?.userId || decodedToken?.commercialId;
-
-      let formData;
-
+  
+      // Calculate totals
+      const totalHT = panierItems.reduce(
+        (acc, item) => acc + (item.montantHT || 0),
+        0
+      );
+      const totalTVA = panierItems.reduce(
+        (acc, item) => acc + (item.montantTVA || 0),
+        0
+      );
+      const totalTTC = panierItems.reduce(
+        (acc, item) => acc + (item.montantTTC || 0),
+        0
+      );
+      const totalQuantity = panierItems.reduce(
+        (acc, item) => acc + (item.quantite || 0),
+        0
+      );
+  
+      // CORRECTION ICI - Nettoyer les descriptions
+      const cleanDescriptions = panierItems
+        .map((item) => {
+          if (!item.description) return null;
+          // Supprimer les \n au début et à la fin, et nettoyer les espaces
+          return item.description.trim().replace(/^\n+|\n+$/g, '');
+        })
+        .filter(Boolean);
+  
+      const formData = {
+        ...values,
+        session: userId,
+        leadId: id,
+        commercialName,
+        description: cleanDescriptions.join("\n\n"), // Maintenant propre
+        title: panierItems
+          .map((item) => item.title)
+          .filter(Boolean)
+          .join(", "),
+        category: panierItems.map((item) => item.category).join(", "),
+        reference: panierItems.map((item) => item.reference).join(", "),
+        totalHT,
+        totalTVA,
+        totalTTC,
+        quantite: totalQuantity,
+        items: panierItems.map((item) => ({
+          produit: item.produit,
+          title: item.title,
+          description: item.description ? item.description.trim().replace(/^\n+|\n+$/g, '') : '', // Nettoyer aussi dans items
+          reference: item.reference,
+          category: item.category,
+          quantite: item.quantite,
+          prixUnitaire: item.total,
+          montantHT: item.montantHT,
+          montantTVA: item.montantTVA,
+          montantTTC: item.montantTTC,
+          tva: item.tva,
+          forfait: item.forfait,
+          date: item.date,
+        })),
+      };
+  
+      console.log('FormData description:', formData.description); // Vérifiez le résultat
+  
       if (!commandId) {
-        // Calculate totals
-        const totalHT = panierItems.reduce(
-          (acc, item) => acc + (item.montantHT || 0),
-          0
-        );
-        const totalTVA = panierItems.reduce(
-          (acc, item) => acc + (item.montantTVA || 0),
-          0
-        );
-        const totalTTC = panierItems.reduce(
-          (acc, item) => acc + (item.montantTTC || 0),
-          0
-        );
-        const totalQuantity = panierItems.reduce(
-          (acc, item) => acc + (item.quantite || 0),
-          0
-        );
-
-        formData = {
-          ...values,
-          session: userId,
-          leadId: id,
-          commercialName,
-          description: panierItems
-            .map((item) => item.description)
-            .filter(Boolean)
-            .join("\n\n"),
-          title: panierItems
-            .map((item) => item.title)
-            .filter(Boolean)
-            .join(", "),
-          category: panierItems.map((item) => item.category).join(", "),
-          reference: panierItems.map((item) => item.reference).join(", "),
-          totalHT,
-          totalTVA,
-          totalTTC,
-          quantite: totalQuantity, // Total quantity
-          items: panierItems.map((item) => ({
-            produit: item.produit,
-            title: item.title,
-            description: item.description,
-            reference: item.reference,
-            category: item.category,
-            quantite: item.quantite, // Individual quantity
-            prixUnitaire: item.total,
-            montantHT: item.montantHT,
-            montantTVA: item.montantTVA,
-            montantTTC: item.montantTTC,
-            tva: item.tva,
-            forfait: item.forfait,
-          })),
-        };
-
         await axios.post("/command", formData);
         message.success("Commande ajoutée avec succès !");
       } else {
-        // ... existing update logic ...
+        const res = await axios.put(`/command/${commandId}`, formData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        console.log('Update response:', res.data);
+        message.success("Commande mise à jour avec succès !");
       }
-
+  
       navigate(`/lead/${id}`);
     } catch (error) {
       message.error("Erreur lors de l'envoi de la commande.");
-      console.error(error);
+      console.error('Error details:', error.response?.data || error.message);
     }
   };
+  // const handleFormSubmit = async (values) => {
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const decodedToken = token ? jwtDecode(token) : null;
+  //     const commercialName = decodedToken?.name || decodedToken?.commercialName;
+  
+  //     if (!decodedToken) {
+  //       alert("User not authenticated");
+  //       return;
+  //     }
+  
+  //     const userId = decodedToken?.userId || decodedToken?.commercialId;
+  
+  //     // Calculate totals (COMMON FOR BOTH CREATE AND UPDATE)
+  //     const totalHT = panierItems.reduce(
+  //       (acc, item) => acc + (item.montantHT || 0),
+  //       0
+  //     );
+  //     const totalTVA = panierItems.reduce(
+  //       (acc, item) => acc + (item.montantTVA || 0),
+  //       0
+  //     );
+  //     const totalTTC = panierItems.reduce(
+  //       (acc, item) => acc + (item.montantTTC || 0),
+  //       0
+  //     );
+  //     const totalQuantity = panierItems.reduce(
+  //       (acc, item) => acc + (item.quantite || 0),
+  //       0
+  //     );
+  
+  //     // Prepare formData (COMMON FOR BOTH CREATE AND UPDATE)
+  //     const formData = {
+  //       ...values,
+  //       session: userId,
+  //       leadId: id,
+  //       commercialName,
+  //       description: panierItems
+  //         .map((item) => item.description)
+  //         .filter(Boolean),
+  //       title: panierItems
+  //         .map((item) => item.title)
+  //         .filter(Boolean)
+  //         .join(", "),
+  //       category: panierItems.map((item) => item.category).join(", "),
+  //       reference: panierItems.map((item) => item.reference).join(", "),
+  //       totalHT,
+  //       totalTVA,
+  //       totalTTC,
+  //       quantite: totalQuantity,
+  //       items: panierItems.map((item) => ({
+  //         produit: item.produit,
+  //         title: item.title,
+  //         description: item.description,
+  //         reference: item.reference,
+  //         category: item.category,
+  //         quantite: item.quantite,
+  //         prixUnitaire: item.total,
+  //         montantHT: item.montantHT,
+  //         montantTVA: item.montantTVA,
+  //         montantTTC: item.montantTTC,
+  //         tva: item.tva,
+  //         forfait: item.forfait,
+  //         date: item.date,
+  //       })),
+  //     };
+  
+  //     console.log('FormData being sent:', formData); // AJOUTEZ CE LOG
+  
+  //     if (!commandId) {
+  //       // CREATE
+  //       await axios.post("/command", formData);
+  //       message.success("Commande ajoutée avec succès !");
+  //     } else {
+  //       // UPDATE - CORRECTION ICI
+  //       const res = await axios.put(`/command/${commandId}`, formData, {
+  //         headers: { Authorization: `Bearer ${token}` }
+  //       });
+  //       console.log('Update response:', res.data);
+  //       message.success("Commande mise à jour avec succès !");
+  //     }
+  
+  //     navigate(`/lead/${id}`);
+  //   } catch (error) {
+  //     message.error("Erreur lors de l'envoi de la commande.");
+  //     console.error('Error details:', error.response?.data || error.message);
+  //   }
+  // };
+  // const handleFormSubmit = async (values) => {
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const decodedToken = token ? jwtDecode(token) : null;
+  //     const commercialName = decodedToken?.name || decodedToken?.commercialName;
+
+  //     if (!decodedToken) {
+  //       alert("User not authenticated");
+  //       return;
+  //     }
+
+  //     const userId = decodedToken?.userId || decodedToken?.commercialId;
+
+  //     let formData;
+
+  //     if (!commandId) {
+  //       // Calculate totals
+  //       const totalHT = panierItems.reduce(
+  //         (acc, item) => acc + (item.montantHT || 0),
+  //         0
+  //       );
+  //       const totalTVA = panierItems.reduce(
+  //         (acc, item) => acc + (item.montantTVA || 0),
+  //         0
+  //       );
+  //       const totalTTC = panierItems.reduce(
+  //         (acc, item) => acc + (item.montantTTC || 0),
+  //         0
+  //       );
+  //       const totalQuantity = panierItems.reduce(
+  //         (acc, item) => acc + (item.quantite || 0),
+  //         0
+  //       );
+
+  //       formData = {
+  //         ...values,
+  //         session: userId,
+  //         leadId: id,
+  //         commercialName,
+  //         description: panierItems
+  //           .map((item) => item.description)
+  //           .filter(Boolean)
+  //           .join("\n\n"),
+  //         title: panierItems
+  //           .map((item) => item.title)
+  //           .filter(Boolean)
+  //           .join(", "),
+  //         category: panierItems.map((item) => item.category).join(", "),
+  //         reference: panierItems.map((item) => item.reference).join(", "),
+  //         totalHT,
+  //         totalTVA,
+  //         totalTTC,
+  //         quantite: totalQuantity, // Total quantity
+  //         items: panierItems.map((item) => ({
+  //           produit: item.produit,
+  //           title: item.title,
+  //           description: item.description,
+  //           reference: item.reference,
+  //           category: item.category,
+  //           quantite: item.quantite, // Individual quantity
+  //           prixUnitaire: item.total,
+  //           montantHT: item.montantHT,
+  //           montantTVA: item.montantTVA,
+  //           montantTTC: item.montantTTC,
+  //           tva: item.tva,
+  //           forfait: item.forfait,
+  //           date: item.date,
+  //         })),
+  //       };
+
+  //       await axios.post("/command", formData);
+  //       message.success("Commande ajoutée avec succès !");
+  //     } else {
+  //       const res = await axios.put(`/command/${commandId}`, formData, {
+  //         headers: { Authorization: `Bearer ${token}` }
+  //       });
+  //       console.log('Update response:', res.data);
+  //       message.success("Commande mise à jour avec succès !");
+  //     }
+
+  //     navigate(`/lead/${id}`);
+  //   } catch (error) {
+  //     message.error("Erreur lors de l'envoi de la commande.");
+  //     console.error(error);
+  //   }
+  // };
   return (
     <div className="p-12">
       <Form
@@ -329,7 +516,7 @@ const CreateCommand = () => {
             <Form.Item
               label="Email"
               name="email"
-              rules={[{ required: false, message: "L'email est requis" }]}
+              rules={[{ required: true, message: "L'email est requis" }]}
             >
               <Input placeholder="Email du client" />
             </Form.Item>
@@ -428,6 +615,15 @@ const CreateCommand = () => {
             >
               <Input placeholder="Montant TTC" readOnly />
             </Form.Item>
+            <Form.Item
+    label="Note"
+    name="note"
+  >
+    <TextArea 
+      placeholder="Ajoutez une note (facultatif) - Le texte sera automatiquement préfixé par 'Note :'"
+      rows={3}
+    />
+  </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item
@@ -437,6 +633,19 @@ const CreateCommand = () => {
             >
               <Input placeholder="total TVA" readOnly />
             </Form.Item>
+            <Form.Item
+    label="Nature des prestations"
+    name="naturePrestations"
+    rules={[{ required: true, message: "La nature des prestations est requise" }]}
+  >
+    <TextArea 
+      placeholder="Décrivez la nature des prestations à réaliser..." 
+      rows={4}
+    />
+  </Form.Item>
+
+  {/* Note - Optional with default prefix */}
+ 
           </Col>
         </Row>
 

@@ -481,7 +481,7 @@ const Leads = () => {
       <div className="mb-12 md:p-4 p-1">
         <div className="md:flex flex-row justify-between  items-center p-4 bg-white rounded-t-md shadow-sm">
           <h2 className="text-md font-semibold text-gray-700">
-            NOUVAEU PROSPET/CLIENT
+          NOUVEAU PROSPET/CLIENT
           </h2>
           <div className="flex flex-row md:flex-row gap-1 sm:gap-4">
             <Button
@@ -714,7 +714,7 @@ const Leads = () => {
           <Form.Item
             label="Téléphone"
             name="phone"
-            rules={[{ required: true, message: "Téléphone est requis." }]}
+            rules={[{ required: false, message: "Téléphone est requis." }]}
           >
             <Input
               className="w-full p-2 border rounded-lg"

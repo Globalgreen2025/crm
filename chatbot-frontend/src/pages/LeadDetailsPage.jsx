@@ -18,6 +18,7 @@ import {
   Tag,
   Progress,
   Modal,
+  TimePicker
 } from "antd";
 import { jwtDecode } from "jwt-decode";
 import CalendarEvents from "../components/CalendarEvents";
@@ -693,13 +694,24 @@ const factureColumns = [
                         />
                       </Form.Item>
 
-                      <Form.Item
+                      {/* <Form.Item
                         label="Heure"
                         name="event_time"
                         rules={[{ required: true }]}
                       >
                         <Input placeholder="HH:mm" />
-                      </Form.Item>
+                      </Form.Item> */}
+                      <Form.Item
+  label="Heure"
+  name="event_time"
+  rules={[{ required: true, message: "Veuillez sélectionner une heure" }]}
+>
+  <TimePicker
+    format="HH:mm"
+    placeholder="Sélectionnez l'heure"
+    style={{ width: "100%" }}
+  />
+</Form.Item>
                       <Form.Item
                         label="Objectif"
                         name="objective"
@@ -724,6 +736,13 @@ const factureColumns = [
                           <Option value="Faux numéro // Hors planning">
                             Faux numéro // Hors planning
                           </Option>
+                          <Option value="Pose d'ouvrage">
+                            Pose d'ouvrage
+                          </Option>
+                          <Option value="SAV">
+                            SAV
+                          </Option>
+
                         </Select>
                       </Form.Item>
 
@@ -761,7 +780,7 @@ const factureColumns = [
                 />
               </div>
             </TabPane>
-            <TabPane tab={`Panier (${cartQuantity})`} key="6">
+            <TabPane tab={`Commande (${cartQuantity})`} key="6">
               <div className="space-y-4">
                 <Panier
                   setCartQuantity={setCartQuantity}

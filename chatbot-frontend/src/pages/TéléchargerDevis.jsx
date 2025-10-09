@@ -75,11 +75,11 @@ const AllDevis = () => {
   const [error, setError] = useState(null);
   const [filteredCommands, setFilteredCommands] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalHT: 0,
-    totalTTC: 0,
-    totalCommands: 0,
-  });
+  // const [stats, setStats] = useState({
+  //   totalHT: 0,
+  //   totalTTC: 0,
+  //   totalCommands: 0,
+  // });
   const [activeFilter, setActiveFilter] = useState("all");
   const token = localStorage.getItem("token");
   const decodedUser = token ? jwtDecode(token) : null;
@@ -89,7 +89,12 @@ const AllDevis = () => {
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [sendingEmails, setSendingEmails] = useState({});
 
-
+  const [stats, setStats] = useState({
+    totalCommands: 0,
+    totalHT: 0,
+    totalTTC: 0,
+    totalTVA: 0
+  });
   const [factureStats, setFactureStats] = useState({
     totalFactures: 0,
     totalHTFactures: 0,
@@ -101,66 +106,369 @@ const AllDevis = () => {
     facturesPartielles: 0
   });
 
-
-  const calculateFactureStats = (commands) => {
-    // Filtrer seulement les commandes de type facture
-    const factures = commands.filter(cmd => cmd.command_type === "facture");
-    
-    // Calculer les totaux
-    const totalHT = factures.reduce((sum, f) => sum + (f.totalHT || 0), 0);
-    const totalTTC = factures.reduce((sum, f) => sum + (f.totalTTC || 0), 0);
-    
-    // Calculer le montant payé basé sur les factures individuelles
-    const totalPaye = factures.reduce((sum, facture) => {
-      if (facture.invoices && Array.isArray(facture.invoices)) {
-        return sum + facture.invoices
-          .filter(inv => inv.status === 'payée')
-          .reduce((invSum, inv) => invSum + (inv.amount || 0), 0);
-      }
-      return sum + (facture.paidAmount || 0);
-    }, 0);
-    
-    const resteAPayer = totalTTC - totalPaye;
-    
-    // Compter les statuts des factures
-    const facturesPayees = factures.filter(facture => {
-      if (facture.invoices && Array.isArray(facture.invoices)) {
-        return facture.invoices.length > 0 && 
-               facture.invoices.every(inv => inv.status === 'payée');
-      }
-      return facture.paymentStatus === 'paid';
-    }).length;
-    
-    const facturesEnAttente = factures.filter(facture => {
-      if (facture.invoices && Array.isArray(facture.invoices)) {
-        return facture.invoices.length === 0 || 
-               facture.invoices.every(inv => inv.status !== 'payée');
-      }
-      return facture.paymentStatus === 'pending' || !facture.paymentStatus;
-    }).length;
-    
-    const facturesPartielles = factures.filter(facture => {
-      if (facture.invoices && Array.isArray(facture.invoices)) {
-        const paidInvoices = facture.invoices.filter(inv => inv.status === 'payée').length;
-        return paidInvoices > 0 && paidInvoices < facture.invoices.length;
-      }
-      return facture.paymentStatus === 'partial';
-    }).length;
-
-    return {
-      totalFactures: factures.length,
-      totalHTFactures: totalHT,
-      totalTTCAFactures: totalTTC,
-      totalPaye: totalPaye,
-      resteAPayer: resteAPayer,
-      facturesPayees: facturesPayees,
-      facturesEnAttente: facturesEnAttente,
-      facturesPartielles: facturesPartielles
+  // Calculate statistics including forfait amounts
+  const calculateStats = (commands) => {
+    const newStats = {
+      totalCommands: commands.length,
+      totalHT: 0,
+      totalTTC: 0,
+      totalTVA: 0
     };
+
+    commands.forEach(command => {
+      // Calculate totals including forfait
+      let commandHT = command.totalHT || 0;
+      let commandTTC = command.totalTTC || 0;
+      
+      // Add forfait amounts if they exist in items
+      if (command.items && command.items.length > 0) {
+        command.items.forEach(item => {
+          if (item.forfait && parseFloat(item.forfait) > 0) {
+            const forfaitAmount = parseFloat(item.forfait);
+            commandHT += forfaitAmount;
+            commandTTC += forfaitAmount; // Forfait is HT, so add to both HT and TTC
+          }
+        });
+      }
+
+      newStats.totalHT += commandHT;
+      newStats.totalTTC += commandTTC;
+      newStats.totalTVA += commandTTC - commandHT;
+    });
+
+    return newStats;
   };
+
+// Calculate facture statistics - CORRECTED VERSION
+const calculateFactureStats = (commands) => {
+  const newFactureStats = {
+    totalFactures: 0,
+    totalHTFactures: 0,
+    totalTTCAFactures: 0,
+    totalPaye: 0,
+    resteAPayer: 0,
+    facturesPayees: 0,
+    facturesEnAttente: 0,
+    facturesPartielles: 0
+  };
+
+  // Track commands we've already processed to avoid double counting
+  const processedCommands = new Set();
+
+  commands.forEach(command => {
+    // Case 1: It's a command with invoices array (like your devis example)
+    if (command.invoices && command.invoices.length > 0) {
+      // Only count this command once
+      if (!processedCommands.has(command._id)) {
+        newFactureStats.totalFactures++;
+        processedCommands.add(command._id);
+
+        let totalCommandTTC = command.totalTTC || 0;
+        let totalPaidAmount = command.paidAmount || 0;
+        let totalForfait = 0;
+
+        // Add forfait amounts from items
+        if (command.items && command.items.length > 0) {
+          command.items.forEach(item => {
+            if (item.forfait && parseFloat(item.forfait) > 0) {
+              const forfaitAmount = parseFloat(item.forfait);
+              totalForfait += forfaitAmount;
+            }
+          });
+        }
+
+        // Calculate total TTC including forfait
+        totalCommandTTC += totalForfait;
+
+        // Calculate total paid amount from all invoices
+        let totalInvoicePayments = 0;
+        command.invoices.forEach(invoice => {
+          if (invoice.payments && invoice.payments.length > 0) {
+            invoice.payments.forEach(payment => {
+              totalInvoicePayments += payment.amount || 0;
+            });
+          }
+        });
+
+        // Use the higher of command.paidAmount or total invoice payments
+        totalPaidAmount = Math.max(totalPaidAmount, totalInvoicePayments);
+
+        newFactureStats.totalTTCAFactures += totalCommandTTC;
+        newFactureStats.totalPaye += totalPaidAmount;
+
+        const remaining = totalCommandTTC - totalPaidAmount;
+        newFactureStats.resteAPayer += Math.max(0, remaining);
+
+        // Determine status for the entire command
+        if (totalPaidAmount >= totalCommandTTC) {
+          newFactureStats.facturesPayees++;
+        } else if (totalPaidAmount > 0) {
+          newFactureStats.facturesPartielles++;
+        } else {
+          newFactureStats.facturesEnAttente++;
+        }
+      }
+    }
+    // Case 2: It's a standalone invoice (no parent command)
+    else if (command.invoiceNumber && !command.commande) {
+      newFactureStats.totalFactures++;
+      
+      const invoiceTTC = command.amount || 0;
+      let paidAmount = 0;
+
+      // Calculate paid amount from payments
+      if (command.payments && command.payments.length > 0) {
+        command.payments.forEach(payment => {
+          paidAmount += payment.amount || 0;
+        });
+      }
+
+      newFactureStats.totalTTCAFactures += invoiceTTC;
+      newFactureStats.totalPaye += paidAmount;
+
+      const remaining = invoiceTTC - paidAmount;
+      newFactureStats.resteAPayer += Math.max(0, remaining);
+
+      // Determine status
+      if (paidAmount >= invoiceTTC) {
+        newFactureStats.facturesPayees++;
+      } else if (paidAmount > 0) {
+        newFactureStats.facturesPartielles++;
+      } else {
+        newFactureStats.facturesEnAttente++;
+      }
+    }
+    // Case 3: It's an accepted devis or facture without invoices
+    else if ((command.command_type === 'facture' || command.status === 'accepté') && !command.invoices) {
+      newFactureStats.totalFactures++;
+      
+      let commandTTC = command.totalTTC || 0;
+      let paidAmount = command.paidAmount || 0;
+
+      // Add forfait amounts
+      if (command.items && command.items.length > 0) {
+        command.items.forEach(item => {
+          if (item.forfait && parseFloat(item.forfait) > 0) {
+            const forfaitAmount = parseFloat(item.forfait);
+            commandTTC += forfaitAmount;
+          }
+        });
+      }
+
+      newFactureStats.totalTTCAFactures += commandTTC;
+      newFactureStats.totalPaye += paidAmount;
+
+      const remaining = commandTTC - paidAmount;
+      newFactureStats.resteAPayer += Math.max(0, remaining);
+
+      // Determine status
+      if (paidAmount >= commandTTC) {
+        newFactureStats.facturesPayees++;
+      } else if (paidAmount > 0) {
+        newFactureStats.facturesPartielles++;
+      } else {
+        newFactureStats.facturesEnAttente++;
+      }
+    }
+  });
+
+  return newFactureStats;
+};
+
+  // Update statistics when commands change
+  const updateStatistics = (commands) => {
+    const newStats = calculateStats(commands);
+    const newFactureStats = calculateFactureStats(commands);
+    
+    setStats(newStats);
+    setFactureStats(newFactureStats);
+  };
+
+  // const [factureStats, setFactureStats] = useState({
+  //   totalFactures: 0,
+  //   totalHTFactures: 0,
+  //   totalTTCAFactures: 0,
+  //   totalPaye: 0,
+  //   resteAPayer: 0,
+  //   facturesPayees: 0,
+  //   facturesEnAttente: 0,
+  //   facturesPartielles: 0
+  // });
+
+  // const calculateFactureStats = (commands) => {
+  //   // Helper function to safely parse numbers
+  //   const safeNumber = (value) => {
+  //     const num = parseFloat(value);
+  //     return isNaN(num) ? 0 : num;
+  //   };
+  
+  //   // Filtrer seulement les commandes de type facture
+  //   const factures = commands.filter(cmd => cmd.command_type === "facture");
+    
+  //   // Calculer les totaux avec sécurité
+  //   const totalHT = factures.reduce((sum, f) => {
+  //     // Try to calculate from items first, then fallback to totalHT
+  //     if (f.items && Array.isArray(f.items)) {
+  //       const itemsHT = f.items.reduce((itemSum, item) => {
+  //         return itemSum + safeNumber(item.prixUnitaire) * safeNumber(item.quantite);
+  //       }, 0);
+  //       return sum + itemsHT;
+  //     }
+  //     return sum + safeNumber(f.totalHT);
+  //   }, 0);
+  
+  //   const totalTTC = factures.reduce((sum, f) => {
+  //     // Try to calculate from items first, then fallback to totalTTC
+  //     if (f.items && Array.isArray(f.items)) {
+  //       const itemsTTC = f.items.reduce((itemSum, item) => {
+  //         return itemSum + safeNumber(item.montantTTC);
+  //       }, 0);
+  //       return sum + itemsTTC;
+  //     }
+  //     return sum + safeNumber(f.totalTTC);
+  //   }, 0);
+  
+  //   // Calculer le montant payé avec sécurité
+  //   const totalPaye = factures.reduce((sum, facture) => {
+  //     if (facture.invoices && Array.isArray(facture.invoices)) {
+  //       const paidAmount = facture.invoices
+  //         .filter(inv => inv.status === 'payée')
+  //         .reduce((invSum, inv) => invSum + safeNumber(inv.amount), 0);
+  //       return sum + paidAmount;
+  //     }
+  //     return sum + safeNumber(facture.paidAmount);
+  //   }, 0);
+  
+  //   // Calculer reste à payer avec arrondi pour éviter -0.00
+  //   let resteAPayer = Math.round((totalTTC - totalPaye) * 100) / 100;
+  //   if (Math.abs(resteAPayer) < 0.001) {
+  //     resteAPayer = 0;
+  //   }
+  
+  //   // Compter les statuts des factures avec logique améliorée
+  //   let facturesPayees = 0;
+  //   let facturesEnAttente = 0;
+  //   let facturesPartielles = 0;
+  
+  //   factures.forEach(facture => {
+  //     if (facture.invoices && Array.isArray(facture.invoices) && facture.invoices.length > 0) {
+  //       const totalInvoiceAmount = facture.invoices.reduce((sum, inv) => sum + safeNumber(inv.amount), 0);
+  //       const paidAmount = facture.invoices
+  //         .filter(inv => inv.status === 'payée')
+  //         .reduce((sum, inv) => sum + safeNumber(inv.amount), 0);
+  
+  //       if (paidAmount >= totalInvoiceAmount) {
+  //         facturesPayees++;
+  //       } else if (paidAmount > 0) {
+  //         facturesPartielles++;
+  //       } else {
+  //         facturesEnAttente++;
+  //       }
+  //     } else {
+  //       // No invoices or empty invoices array
+  //       const paidAmount = safeNumber(facture.paidAmount);
+  //       const totalAmount = safeNumber(facture.totalTTC);
+  
+  //       if (paidAmount >= totalAmount) {
+  //         facturesPayees++;
+  //       } else if (paidAmount > 0) {
+  //         facturesPartielles++;
+  //       } else {
+  //         facturesEnAttente++;
+  //       }
+  //     }
+  //   });
+  
+  //   // Arrondir tous les montants pour la cohérence
+  //   return {
+  //     totalFactures: factures.length,
+  //     totalHTFactures: Math.round(totalHT * 100) / 100,
+  //     totalTTCAFactures: Math.round(totalTTC * 100) / 100,
+  //     totalPaye: Math.round(totalPaye * 100) / 100,
+  //     resteAPayer: resteAPayer,
+  //     facturesPayees: facturesPayees,
+  //     facturesEnAttente: facturesEnAttente,
+  //     facturesPartielles: facturesPartielles
+  //   };
+  // };
+  // Add this after calculating factureStats to see what's happening
+useEffect(() => {
+  if (factureStats.totalFactures > 0) {
+    console.log('Facture Stats Debug:', {
+      totalTTC: factureStats.totalTTCAFactures,
+      totalPaye: factureStats.totalPaye,
+      calculatedDifference: factureStats.totalTTCAFactures - factureStats.totalPaye,
+      displayedReste: factureStats.resteAPayer,
+      factures: allCommands.filter(cmd => cmd.command_type === "facture").map(f => ({
+        num: f.numCommand,
+        totalTTC: f.totalTTC,
+        invoices: f.invoices,
+        paidAmount: f.paidAmount
+      }))
+    });
+  }
+}, [factureStats]);
+  // const calculateFactureStats = (commands) => {
+  //   // Filtrer seulement les commandes de type facture
+  //   const factures = commands.filter(cmd => cmd.command_type === "facture");
+    
+  //   // Calculer les totaux
+  //   const totalHT = factures.reduce((sum, f) => sum + (f.totalHT || 0), 0);
+  //   const totalTTC = factures.reduce((sum, f) => sum + (f.totalTTC || 0), 0);
+    
+  //   // Calculer le montant payé basé sur les factures individuelles
+  //   const totalPaye = factures.reduce((sum, facture) => {
+  //     if (facture.invoices && Array.isArray(facture.invoices)) {
+  //       return sum + facture.invoices
+  //         .filter(inv => inv.status === 'payée')
+  //         .reduce((invSum, inv) => invSum + (inv.amount || 0), 0);
+  //     }
+  //     return sum + (facture.paidAmount || 0);
+  //   }, 0);
+    
+  //   // const resteAPayer = totalTTC - totalPaye;
+  //   const resteAPayer = Math.round((totalTTC - totalPaye) * 100) / 100;
+    
+  //   // Compter les statuts des factures
+  //   const facturesPayees = factures.filter(facture => {
+  //     if (facture.invoices && Array.isArray(facture.invoices)) {
+  //       return facture.invoices.length > 0 && 
+  //              facture.invoices.every(inv => inv.status === 'payée');
+  //     }
+  //     return facture.paymentStatus === 'paid';
+  //   }).length;
+    
+  //   const facturesEnAttente = factures.filter(facture => {
+  //     if (facture.invoices && Array.isArray(facture.invoices)) {
+  //       return facture.invoices.length === 0 || 
+  //              facture.invoices.every(inv => inv.status !== 'payée');
+  //     }
+  //     return facture.paymentStatus === 'pending' || !facture.paymentStatus;
+  //   }).length;
+    
+  //   const facturesPartielles = factures.filter(facture => {
+  //     if (facture.invoices && Array.isArray(facture.invoices)) {
+  //       const paidInvoices = facture.invoices.filter(inv => inv.status === 'payée').length;
+  //       return paidInvoices > 0 && paidInvoices < facture.invoices.length;
+  //     }
+  //     return facture.paymentStatus === 'partial';
+  //   }).length;
+
+  //   return {
+  //     totalFactures: factures.length,
+  //     totalHTFactures: totalHT,
+  //     totalTTCAFactures: totalTTC,
+  //     totalPaye: totalPaye,
+  //     resteAPayer: resteAPayer,
+  //     facturesPayees: facturesPayees,
+  //     facturesEnAttente: facturesEnAttente,
+  //     facturesPartielles: facturesPartielles
+  //   };
+  // };
 
   // Add these functions:
   const handleGenerateBillingPlan = (command) => {
+    console.log("cooooooomand", command)
     setSelectedCommand(command);
     setBillingModalVisible(true);
   };
@@ -379,18 +687,18 @@ const AllDevis = () => {
     setActiveFilter(filterType);
   };
 
-  const updateStatistics = (commands) => {
-    const totals = commands.reduce(
-      (acc, cmd) => ({
-        totalHT: acc.totalHT + (cmd.totalHT || 0),
-        totalTTC: acc.totalTTC + (cmd.totalTTC || 0),
-        totalCommands: acc.totalCommands + 1,
-      }),
-      { totalHT: 0, totalTTC: 0, totalCommands: 0 }
-    );
+  // const updateStatistics = (commands) => {
+  //   const totals = commands.reduce(
+  //     (acc, cmd) => ({
+  //       totalHT: acc.totalHT + (cmd.totalHT || 0),
+  //       totalTTC: acc.totalTTC + (cmd.totalTTC || 0),
+  //       totalCommands: acc.totalCommands + 1,
+  //     }),
+  //     { totalHT: 0, totalTTC: 0, totalCommands: 0 }
+  //   );
 
-    setStats(totals);
-  };
+  //   setStats(totals);
+  // };
 
   const handleEdit = (record, e) => {
     e.stopPropagation();
@@ -426,680 +734,8 @@ const AllDevis = () => {
   const safeRender = (value, fallback = "N/A") => {
     return value !== undefined && value !== null ? value : fallback;
   };
-
-//   const handleDownload = (commandId, e) => {
-//     e.stopPropagation();
-
-//     const command = allCommands.find((cmd) => cmd._id === commandId);
-//     if (!command) {
-//       message.error("Commande non trouvée");
-//       return;
-//     }
-
-//     const doc = new jsPDF();
-//     const pageWidth = doc.internal.pageSize.width;
-//     const pageHeight = doc.internal.pageSize.height;
-//     const marginTop = 10;
-//     const marginLeft = 5;
-//     const margin = 8;
-//     const addFooter = (pageNum) => {
-//       const footerY = pageHeight - 5;
-//       const leftText = "Global Green - SAS au capital social de 5000 €";
-//       const centerText = "N°SIREN 94305436100010 - RCS Blois";
-//       const rightText = "N° de TVA FR41492502992";
-
-//       doc.setFontSize(9);
-//       doc.setFont(undefined, "normal");
-
-//       // Left-aligned
-//       doc.text(leftText, margin, footerY);
-
-//       // Centered
-//       doc.text(centerText, pageWidth / 2, footerY, { align: "center" });
-
-//       // Right-aligned
-//       doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
-//     };
-
-//     const logoWidth = 40;
-//     const logoHeight = 40;
-//     const logoleftwidth = 40;
-//     const logoleftheight = 40;
-
-// // Add logos - left logo only
-// doc.addImage(
-//   logo,
-//   "JPEG",
-//   marginLeft, // Use marginLeft instead of marginTop for horizontal positioning
-//   marginTop,
-//   logoleftwidth,
-//   logoleftheight
-// ); // Left logo
-
-// // Company info on the right side
-// doc.setFontSize(10); // same font size for all lines
-
-// const rightStartX = pageWidth - 50; // Adjust X position
-
-// // "Entreprise:" in bold
-// doc.setFont("Helvetica", "bold"); 
-// doc.setTextColor(0, 0, 0);
-// doc.text("Entreprise:", rightStartX, 15);
-
-// // The rest in regular Helvetica
-// doc.setFont("Helvetica", "bold"); 
-// doc.setTextColor(0, 128, 0); // green for company name
-// doc.text("GLOBAL GREEN", rightStartX, 21);
-
-// doc.setFont(undefined, "Helvetica");
-// doc.setFontSize(10);
-// doc.setTextColor(0, 0, 0);
-// doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 27);
-// doc.text("41350 VINEUIL - France", rightStartX, 32);
-// doc.text("Contact@global-green.fr", rightStartX, 37);
-// doc.text("07 64 71 26 87", rightStartX, 42);
-
-// doc.addImage(
-//   logorge, // You'll need to define this variable
-//   "JPEG",
-//   pageWidth / 2 - logoWidth / 2,
-//   marginLeft,
-//   logoWidth,
-//   logoHeight,
-//   marginTop
-// );
-
-// doc.setFont(undefined, "Helvetica");
-// doc.setFontSize(11);
-// // Configuration
-// const LINE_SPACING = 6; // Space between text lines (was 6)
-// const UNDERLINE_OFFSET = 1; // Space between text and underline (was 2)
-// const DASH_COLOR = 100; // Dark gray
-// const LINE_WIDTH = 0.2;
-// const SECTION_SPACING = 0.1; // Added space between sections
-// doc.setFont(undefined, "Helvetica");
-
-// doc.setFontSize(12);
-// doc.setFont(undefined, "bold");
-// doc.setTextColor(0, 0, 0);
-// const devisY = 60;
-// doc.text("Devis", margin, devisY);
-
-// // Left info under "Devis"
-// const emissionMoment = command.date ? moment(command.date) : moment();
-
-// const leftTexts = [
-//   `Numéro                               ${
-//     command.originalNumCommand || ""
-//   }`,
-//   `Date d'émission:                 ${emissionMoment.format("DD/MM/YYYY")}`,
-//   `Date d'expiration:               ${emissionMoment
-//     .clone()
-//     .add(1, "month")
-//     .format("DD/MM/YYYY")}`,
-//   `Type de vente:                    Prestation de service`,
-// ];
-
-// // Draw left texts in regular font size 10
-// doc.setFontSize(11);
-// doc.setFont(undefined, "Helvetica");
-// doc.setTextColor(0, 0, 0);
-// const rightTexts = [
-//   `${command.nom || ""}`,
-//   `${command.address || ""}`,
-//   `${command.ville || ""},  ${command.codepostal || ""}`,
-//   `${command.email || ""}`,
-// ];
-
-// const maxRightWidth = Math.max(
-//   ...rightTexts.map(
-//     (t) =>
-//       (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
-//       doc.internal.scaleFactor
-//   )
-// );
-
-// // Right-side starting X
-// const rightStartXd = pageWidth - margin - maxRightWidth - 4;
-
-// // Starting Y position
-// let currentRightYy = 65; // adjust if needed
-
-// // 1️⃣ "Client ou cliente:" in bold, size 12
-// doc.setFont(undefined, "bold");
-// doc.setFontSize(12);
-// doc.setTextColor(0, 0, 0); // black
-// doc.text("Client ou Cliente:", rightStartXd, currentRightYy);
-
-// // 2️⃣ Client name in bold and green
-// currentRightYy += LINE_SPACING; // space below header
-// doc.setFont("Helvetica", "bold");
-// doc.setFontSize(10);
-// doc.setTextColor(0, 128, 0); // green
-// doc.text(`${command.nom || ""}`, rightStartXd, currentRightYy);
-
-// // 3️⃣ Rest of the details in regular font
-// const otherRightTexts = [
-//   `${command.address || ""}`,
-//   `${command.ville || ""}, ${command.codepostal || ""}`,
-//   `${command.email || ""}`,
-// ];
-
-// doc.setFont(undefined, "Helvetica");
-// doc.setFontSize(10);
-// doc.setTextColor(0, 0, 0);
-
-// currentRightYy += LINE_SPACING; // spacing below client name
-// otherRightTexts.forEach((text, index) => {
-//   doc.text(text, rightStartXd, currentRightYy);
-//   currentRightYy +=
-//     LINE_SPACING +
-//     (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
-// });
-
-// // Get max widths
-// const maxLeftWidth = Math.max(
-//   ...leftTexts.map(
-//     (t) =>
-//       (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) /
-//       doc.internal.scaleFactor
-//   )
-// );
-
-// // INCREASED STARTING Y POSITIONS - PUSHED DOWN BY 20 UNITS
-// let currentLeftY = 69; // Changed from 50 to 70
-// leftTexts.forEach((text, index) => {
-//   doc.text(text, margin, currentLeftY);
-//   // drawUnderline(doc, margin, currentLeftY + UNDERLINE_OFFSET, maxLeftWidth);
-//   // Add extra space after each section except the last one
-//   currentLeftY +=
-//     LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
-// });
-
-// // Order number and date (moved down by additional 20pt)
-// doc.setFontSize(10);
-
-// // Save current text color
-// const currentTextColors = doc.getTextColor();
-// doc.setFont(undefined, "bold");
-// doc.setFontSize(10);
-// doc.setTextColor(0, 0, 0); // Black
-
-// const prestationsYStart = 100; // Y position of the first line
-// const lineSpacing = 6; // space between lines
-
-// // Line 1: Nature des prestations
-// doc.text(`Nature des prestations:`, margin, prestationsYStart);
-// doc.setFont(undefined, "Helvetica");
-// // Line 3: Installation description
-// doc.text(
-//   `Installation et raccordement d'une pompe à chaleur AIR/EAU`,
-//   margin,
-//   prestationsYStart + lineSpacing
-// );
-
-// // Line 4: Nota
-// doc.text(
-//   `Note: Fourniture des radiateurs par le client.`,
-//   margin,
-//   prestationsYStart + lineSpacing * 2
-// );
-
-// // Draw date in black (right aligned)
-// doc.setTextColor(0, 0, 0); // Black
-// // Right-aligned page number
-// doc.setFont(undefined, "Helvetica");
-// doc.setFontSize(10);
-// doc.setTextColor(0, 0, 0); // Black
-// doc.text(
-//   `Page(s): 1 sur 2`,
-//   pageWidth - margin,
-//   115, // same Y as previous date
-//   { align: "right" }
-// );
-
-// // Restore original text color
-// doc.setTextColor(currentTextColors);
-
-// doc.setFont(undefined, "Helvetica");
-// // Restore original text color
-// doc.setTextColor(currentTextColors);
-// // Work description header
-// doc.setFontSize(9);
-
-// const originalTextColor = doc.getTextColor();
-
-// // Calculate equal widths for the three numeric columns
-// const descWidth = 110; // slightly narrower description to make room
-// const availableWidth = pageWidth - 2 * margin - descWidth;
-// const equalColumnWidth = availableWidth / 3; // Divide remaining space equally
-
-// const qteWidth = equalColumnWidth;
-// const prixWidth = equalColumnWidth;
-// const ttcWidth = equalColumnWidth;
-
-// const descX = margin;
-// const qteX = descX + descWidth;
-// const prixX = qteX + qteWidth;
-// const ttcX = prixX + prixWidth;
-
-// // Vertical line positions
-// const line1 = descX + descWidth;
-// const line2 = line1 + qteWidth;
-// const line3 = line2 + prixWidth;
-
-// // Header parameters - ADJUSTED VALUES (PUSHED DOWN BY 20 UNITS)
-// const headerY = 120; // Changed from 90 to 110
-// const headerHeight = 8; // Height of the green background
-// const textY = headerY + 5; // Text positioned 6 units down from header top
-// const firstLineY = headerY + headerHeight; // First line goes right below header
-
-// // Draw header background (light green)
-// doc.setFillColor(21, 128, 61);
-// doc.rect(
-//   margin + 0.2,
-//   headerY + 0.2,
-//   pageWidth - 2 * margin - 0.4,
-//   headerHeight - 0.4,
-//   "F"
-// );
-
-// // Top border line
-// doc.line(margin, headerY, pageWidth - margin, headerY);
-
-// // Table headers - bold and centered
-// doc.setFont(undefined, "bold");
-// doc.setTextColor(0, 0, 0);
-
-// // Calculate center positions
-// const descCenter = descX + descWidth / 2;
-// const qteCenter = qteX + qteWidth / 2;
-// const prixCenter = prixX + prixWidth / 2;
-// const ttcCenter = ttcX + ttcWidth / 2;
-
-// doc.text("Descriptif des travaux", descCenter, textY, {
-//   align: "center",
-// });
-// doc.text("QTÉ", qteCenter, textY, { align: "center" });
-// doc.text("Prix u. HT", prixCenter, textY, { align: "center" });
-// doc.text("Total HT", ttcCenter, textY, { align: "center" });
-
-// // Reset to normal font
-// doc.setFont(undefined, "normal");
-
-// // Table body parameters
-// const tableEndY = pageHeight - 14;
-// const rowCount = 1;
-// const rowHeights = (tableEndY - firstLineY) / rowCount; // Calculate from firstLineY
-
-// // Draw horizontal lines - STARTING FROM BELOW HEADER
-// for (let i = 0; i <= rowCount; i++) {
-//   const yPos = firstLineY + i * rowHeights;
-//   doc.line(margin, yPos, pageWidth - margin, yPos);
-// }
-
-// // Draw vertical lines (full height)
-// doc.line(margin, headerY, margin, tableEndY);
-// doc.line(line1, headerY, line1, tableEndY);
-// doc.line(line2, headerY, line2, tableEndY);
-// doc.line(line3, headerY, line3, tableEndY);
-// doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
-
-// doc.setTextColor(originalTextColor);
-// const tableData = [];
-// if (command.items && command.items.length > 0) {
-//   command.items.forEach((item) => {
-//     tableData.push({
-//       title: item.title || "N/A",
-//       reference: item.reference || "",
-//       description: item.description || "",
-//       quantity: item.quantite || 1,
-//       unitPrice: item.prixUnitaire || 0,
-//       total:
-//         item.montantTTC ||
-//         item.prixUnitaire * item.quantite * (1 + (item.tva || 0) / 100),
-//     });
-//   });
-// } else {
-//   tableData.push({
-//     title: command.title || "N/A",
-//     reference: command.reference || "",
-//     description: command.description || "",
-//     quantity: command.quantite || 1,
-//     unitPrice:
-//       command.prixUnitaire || command.totalHT / (command.quantite || 1),
-//     total: command.totalTTC || 0,
-//   });
-// }
-// let currentRowY = firstLineY + 8; // start just below header
-// tableData.forEach((row) => {
-//   // Font sizes and spacing
-//   const titleFontSize = 10;
-//   const refFontSize = 10;
-//   const descFontSize = 9;
-//   const titleRefSpacing = 0.5; // small space between title and ref
-//   const refDescSpacing = 0.5; // small space between ref and description
-//   const descLineSpacing = 0.3; // space between description lines
-
-//   // Split description into lines
-//   const descLines = doc.splitTextToSize(row.description, descWidth - 15);
-
-//   // Calculate total height of the left cell
-//   const totalHeight =
-//     titleFontSize +
-//     titleRefSpacing +
-//     refFontSize +
-//     refDescSpacing +
-//     descLines.length * (descFontSize + descLineSpacing);
-
-//   // Center Y for numeric columns
-//   const centerY = currentRowY + totalHeight / 2;
-
-//   // --- Left column: title, reference, description ---
-//   let lineY = currentRowY;
-
-//   // Title
-//   doc.setFontSize(titleFontSize);
-//   doc.setFont(undefined, "bold");
-//   doc.setTextColor(0, 0, 0);
-//   doc.text(row.title, descX + 5, lineY);
-//   lineY += titleFontSize;
-
-//   // Reference
-//   doc.setFontSize(refFontSize);
-//   doc.setFont(undefined, "italic");
-//   doc.setTextColor(0, 0, 0);
-//   doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
-//   lineY += refFontSize;
-
-//   // Description with bullets
-//   doc.setFontSize(descFontSize);
-//   doc.setFont(undefined, "normal");
-//   doc.setTextColor(0, 0, 0);
-//   const rawDescLines = row.description.split("\n");
-
-//   rawDescLines.forEach((rawLine) => {
-//     // Prepend bullet only once per original line
-//     const lineWithBullet = `• ${rawLine}`;
-
-//     // Wrap long lines
-//     const wrappedLines = doc.splitTextToSize(
-//       lineWithBullet,
-//       descWidth - 15
-//     );
-
-//     // Draw each wrapped line (lineY moves down each time)
-//     wrappedLines.forEach((line) => {
-//       doc.text(line, descX + 4, lineY);
-//       lineY += descFontSize + descLineSpacing;
-//     });
-//   });
-//   // --- Numeric columns: centered vertically ---
-//   doc.setFontSize(9);
-//   doc.setFont(undefined, "normal");
-//   doc.setTextColor(0, 0, 0);
-
-//   const numY = currentRowY; // align with title top
-//   doc.text(row.quantity.toString(), qteX + qteWidth / 2, numY, { align: "center" });
-//   doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, numY, { align: "center" });
-//   doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, numY, { align: "center" });
-//   // Move currentRowY for next row
-//   currentRowY += totalHeight + 2; // small spacing between rows
-  
-// });
-// // --- Calculate subtotal ---
-// const subtotal = tableData.reduce((acc, row) => acc + row.total, 0);
-
-// // --- Determine Y position for bottom of table ---
-// const tableBottomY = pageHeight - 14; // same as your tableEndY
-// const sousTotalY = tableBottomY - 4; // small padding from bottom
-
-// // Title: "Sous-Total"
-// doc.setFontSize(10);
-// doc.setFont(undefined, "bold");
-// doc.setTextColor(0, 0, 0);// white text
-// doc.text("Sous-Total", descX + 5, sousTotalY);
-
-// // Numeric column: subtotal under "Total HT"
-// doc.setFontSize(10);
-// doc.setFont(undefined, "bold");
-// doc.setTextColor(0, 0, 0);
-// doc.text(`${subtotal.toFixed(2)} €`, ttcX + ttcWidth / 2, sousTotalY, { align: "center" });
-
-// doc.setDrawColor(0, 0, 0);
-// doc.line(margin, sousTotalY - 8, pageWidth - margin, sousTotalY - 8);
-// doc.setPage(1);
-// addFooter(1);
-
-// // === Page 2 ======================================================================================
-// doc.addPage();
-
-// const marginTopp = 10;
-// const marginLeftp = 5;
-// const logoWidthp = 40;
-// const logoHeightp = 40;
-// const logoleftwidthp = 40;
-// const logoleftheightp = 40;
-
-// // Left logo
-// doc.addImage(
-//   logo,
-//   "JPEG",
-//   marginLeftp, // X
-//   marginTopp, // Y
-//   logoleftwidthp, // width
-//   logoleftheightp // height
-// );
-
-// // Center logo
-// doc.addImage(
-//   logorge,
-//   "JPEG",
-//   (pageWidth - logoWidthp) / 2, // center horizontally
-//   marginTopp, // Y
-//   logoWidthp,
-//   logoHeightp
-// );
-
-// // Page number bottom right
-// doc.setFontSize(10);
-// doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 40);
-
-// // Restore original text color
-// doc.setTextColor(currentTextColors);
-
-// // === Common Constants ===
-// const TABLE_ROW_HEIGHT = 55; // Increased from 8 to 10 for better spacing
-// const BODY_ROW_HEIGHT = 125; // Height of body rows
-// const HEADER_ROW_HEIGHT = 8; // Smaller header height (reduced from 15)
-// const ROWS_PER_PAGE = 1;
-
-// // Calculate equal widths for the three numeric columns
-// const DESC_WIDTH = 110; // slightly narrower description to make room
-// // const availableWidth = pageWidth - 2 * margin - DESC_WIDTH;
-// // const equalColumnWidth = availableWidth / 3; // Divide remaining space equally
-
-// const QTY_WIDTH = equalColumnWidth;
-// const UNIT_PRICE_WIDTH = equalColumnWidth;
-// const TOTAL_WIDTH = equalColumnWidth;
-
-// // Column positions
-// const DESC_X = margin;
-// const QTY_X = DESC_X + DESC_WIDTH;
-// const UNIT_PRICE_X = QTY_X + QTY_WIDTH;
-// const TOTAL_X = UNIT_PRICE_X + UNIT_PRICE_WIDTH;
-
-// // Vertical line positions
-// const LINE1 = DESC_X + DESC_WIDTH;
-// const LINE2 = QTY_X + QTY_WIDTH;
-// const LINE3 = UNIT_PRICE_X + UNIT_PRICE_WIDTH;
-
-// const drawTableFrame = (startY, pageNum, pageItems) => {
-//   const headerBgColor = [21, 128, 61];
-
-//   // Draw header background
-//   doc.setFillColor(...headerBgColor);
-//   doc.rect(margin + 0.2, startY + 0.2, pageWidth - 2 * margin - 0.4, HEADER_ROW_HEIGHT - 0.4, "F");
-
-//   // Header top border
-//   doc.line(margin, startY, pageWidth - margin, startY);
-
-//   // Header text
-//   const textY = startY + HEADER_ROW_HEIGHT / 2 + 1;
-//   doc.setFontSize(9);
-//   doc.setFont(undefined, "bold");
-  
-//   // Calculate center positions for equal columns
-//   const descCenter = DESC_X + DESC_WIDTH / 2;
-//   const qtyCenter = QTY_X + QTY_WIDTH / 2;
-//   const unitPriceCenter = UNIT_PRICE_X + UNIT_PRICE_WIDTH / 2;
-//   const totalCenter = TOTAL_X + TOTAL_WIDTH / 2;
-  
-//   doc.text("Descriptif des travaux", descCenter, textY, { align: "center" });
-//   doc.text("QTÉ", qtyCenter, textY, { align: "center" });
-//   doc.text("Prix u. HT", unitPriceCenter, textY, { align: "center" });
-//   doc.text("Total HT", totalCenter, textY, { align: "center" });
-//   doc.setFont(undefined, "normal");
-
-//   // Horizontal lines
-//   const yPos = startY + HEADER_ROW_HEIGHT + BODY_ROW_HEIGHT;
-//   doc.line(margin, startY + HEADER_ROW_HEIGHT, pageWidth - margin, startY + HEADER_ROW_HEIGHT); // header bottom
-//   doc.line(margin, yPos, pageWidth - margin, yPos); // row bottom
  
 
-//   // Vertical lines
-//   const tableBottom = startY + HEADER_ROW_HEIGHT + ROWS_PER_PAGE * BODY_ROW_HEIGHT;
-//   doc.line(margin, startY, margin, tableBottom);
-//   doc.line(LINE1, startY, LINE1, tableBottom);
-//   doc.line(LINE2, startY, LINE2, tableBottom);
-//   doc.line(LINE3, startY, LINE3, tableBottom);
-//   doc.line(pageWidth - margin, startY, pageWidth - margin, tableBottom);
-
-
-
-// };
-
-// // Draw table frame for page 2 with increased row height
-// const tableStartY2 = 55;
-// const tableEndY2 = tableStartY2 + ROWS_PER_PAGE * TABLE_ROW_HEIGHT;
-// drawTableFrame(tableStartY2, tableEndY2, 2);
-
-// // === TVA Recap Section ===
-// let recapY = tableEndY2 + 110;
-
-// // Section title
-// doc.setFontSize(12);
-// doc.setFont(undefined, "bold");
-// doc.text("Détail TVA", margin, recapY);
-
-// // Reset font
-// doc.setFontSize(10);
-// doc.setFont(undefined, "normal");
-
-// recapY += 10;
-
-// // --- TVA stacked format ---
-// const col1X = margin;
-// const col2X = margin + 40;
-// const col3X = margin + 80;
-
-// // Taux
-// doc.setFont(undefined, "bold");
-// doc.text("Taux:", col1X, recapY);
-// doc.setFont(undefined, "normal");
-// doc.text("5,5%", col1X, recapY + 6);
-
-// // Montant TVA
-// doc.setFont(undefined, "bold");
-// doc.text("Montant TVA:", col2X, recapY);
-// doc.setFont(undefined, "normal");
-// doc.text(`${command.totalTVA || "42,40"} €`, col2X, recapY + 6);
-
-// // Base HT
-// doc.setFont(undefined, "bold");
-// doc.text("Base HT:", col3X, recapY);
-// doc.setFont(undefined, "normal");
-// doc.text(`${command.totalHT || "424"} €`, col3X, recapY + 6);
-
-// // --- Récapitulatif box ---
-// const recapBoxX = pageWidth - 80; // widen the box
-// let recapBoxY = recapY - 16;
-
-// // Background rectangle (gray box)
-// const boxWidth = 80;
-// const boxHeight = 35; // adjust depending on spacing
-// doc.setFillColor(200); // gray 400
-// doc.rect(recapBoxX - 5, recapBoxY, boxWidth, boxHeight, "F");
-
-// // Title
-// doc.setFont(undefined, "bold");
-// doc.setFontSize(12);
-// doc.text("Récapitulatif", recapBoxX, recapBoxY + 5, { align: "left" });
-
-// // Totals
-// doc.setFont(undefined, "bold");
-// doc.setFontSize(11);
-
-// recapBoxY += 16;
-// doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
-// doc.text(
-//   `${command.totalHT || "17 800,51"} €`,
-//   pageWidth - margin,
-//   recapBoxY,
-//   { align: "right" }
-// );
-
-// recapBoxY += 8;
-// doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
-// doc.text(
-//   `${command.totalTVA || "979,03"} €`,
-//   pageWidth - margin,
-//   recapBoxY,
-//   { align: "right" }
-// );
-
-// recapBoxY += 8;
-// doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
-// doc.text(`${command.totalTTC} €`, pageWidth - margin, recapBoxY, {
-//   align: "right",
-// });
-
-// // === Signature Section ===
-// recapY += 40;
-// doc.setFontSize(10);
-// doc.setFont(undefined, "normal");
-// doc.text("Date et signature précédée de la mention :", margin, recapY);
-// recapY += 6;
-// doc.text('"Bon pour accord"', margin, recapY);
-
-// // Styling Configuration
-// const LEGAL_FONT_SIZE = 9;
-// const LINE_HEIGHT = 5;
-// const BULLET_INDENT = 5;
-// const MAX_WIDTH = pageWidth - 2 * margin;
-
-// // Draw the professional legal section
-// let currentY = 200;
-
-// doc.setDrawColor(0);
-
-// // Legal text header
-// doc.setFontSize(10);
-// doc.setFont(undefined, "bold");
-// currentY += LINE_HEIGHT + 2;
-
-// doc.setFontSize(LEGAL_FONT_SIZE);
-// doc.setFont(undefined, "normal");
-
-// // Add signature lines
-// currentY += 10;
-// doc.setDrawColor(0);
-// doc.setFontSize(10);
-// doc.setPage(2);
-// addFooter(2);
-//     // Save the PDF
-//     doc.save(`Devis_${command.originalNumCommand}.pdf`);
-//   };
 const handleDownload = (commandId, e) => {
   e.stopPropagation();
 
@@ -1112,9 +748,9 @@ const handleDownload = (commandId, e) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  const marginTop = 10;
+  const marginTop = 5;
   const marginLeft = 5;
-  const margin = 8;
+  const margin = 6;
   
   const addFooter = (pageNum) => {
     const footerY = pageHeight - 5;
@@ -1139,23 +775,23 @@ const handleDownload = (commandId, e) => {
 
   // Company info on the right side
   doc.setFontSize(10);
-  const rightStartX = pageWidth - 50;
+  const rightStartX = pageWidth - 52;
 
   doc.setFont("Helvetica", "bold"); 
   doc.setTextColor(0, 0, 0);
-  doc.text("Entreprise:", rightStartX, 15);
+  doc.text("Entreprise:", rightStartX, 12);
 
   doc.setFont("Helvetica", "bold"); 
   doc.setTextColor(0, 128, 0);
-  doc.text("GLOBAL GREEN", rightStartX, 21);
+  doc.text("GLOBAL GREEN", rightStartX, 18);
 
   doc.setFont(undefined, "Helvetica");
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 27);
-  doc.text("41350 VINEUIL - France", rightStartX, 32);
-  doc.text("Contact@global-green.fr", rightStartX, 37);
-  doc.text("07 64 71 26 87", rightStartX, 42);
+  doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 24);
+  doc.text("41350 VINEUIL - France", rightStartX, 29);
+  doc.text("Contact@global-green.fr", rightStartX, 34);
+  doc.text("07 64 71 26 87", rightStartX, 39);
 
   doc.addImage(logorge, "JPEG", pageWidth / 2 - logoWidth / 2, marginLeft, logoWidth, logoHeight, marginTop);
 
@@ -1168,7 +804,7 @@ const handleDownload = (commandId, e) => {
   doc.setFontSize(12);
   doc.setFont(undefined, "bold");
   doc.setTextColor(0, 0, 0);
-  const devisY = 60;
+  const devisY = 55;
   doc.text("Devis", margin, devisY);
 
   // Left info under "Devis"
@@ -1187,14 +823,14 @@ const handleDownload = (commandId, e) => {
   const rightTexts = [
     `${command.nom || ""}`,
     `${command.address || ""}`,
-    `${command.ville || ""},  ${command.codepostal || ""}`,
+    `${command.ville || ""},   ${command.codepostal || ""}`,
     `${command.email || ""}`,
   ];
 
   const maxRightWidth = Math.max(...rightTexts.map(t => (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) / doc.internal.scaleFactor));
-  const rightStartXd = pageWidth - margin - maxRightWidth - 4;
+  const rightStartXd = pageWidth - margin - maxRightWidth;
 
-  let currentRightYy = 65;
+  let currentRightYy = 60;
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
@@ -1221,7 +857,7 @@ const handleDownload = (commandId, e) => {
     currentRightYy += LINE_SPACING + (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
   });
 
-  let currentLeftY = 69;
+  let currentLeftY = 62;
   leftTexts.forEach((text, index) => {
     doc.text(text, margin, currentLeftY);
     currentLeftY += LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
@@ -1233,19 +869,266 @@ const handleDownload = (commandId, e) => {
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
-  const prestationsYStart = 100;
+  const prestationsYStart = 90;
   const lineSpacing = 6;
 
-  doc.setFontSize(11);
-  doc.text(`Nature des prestations:`, margin, prestationsYStart);
+  doc.setFontSize(10);
+  doc.text(`Nature de l'intervention:`, margin, prestationsYStart);
   doc.setFont(undefined, "Helvetica");
-  doc.text(`Installation et raccordement d'une pompe à chaleur AIR/EAU`, margin, prestationsYStart + lineSpacing);
-  doc.text(`Note: Fourniture des radiateurs par le client.`, margin, prestationsYStart + lineSpacing * 2);
+  let currentY = prestationsYStart + lineSpacing;
+  if (command.naturePrestations) {
+    const prestationsLines = doc.splitTextToSize(command.naturePrestations, pageWidth - margin * 2);
+    doc.text(prestationsLines, margin, currentY);
+    
+    // Calculate height based on number of lines
+    const prestationsHeight = prestationsLines.length * lineSpacing;
+    currentY += prestationsHeight;
+  } 
 
+  // Add Note from command data (with automatic "Note:" prefix from schema)
+  if (command.note) {
+    currentY += lineSpacing; // Add extra space before note
+    
+    // Ensure note has "Note:" prefix (safety check)
+    let noteText = command.note;
+    if (noteText && !noteText.trim().toLowerCase().startsWith('note:')) {
+      noteText = `Note: ${noteText.trim()}`;
+    }
+    
+    const noteLines = doc.splitTextToSize(noteText, pageWidth - margin * 2);
+    doc.text(noteLines, margin, currentY - 6);
+  }
+
+  let totalBaseHT = 0;
+  let totalBaseTTC = 0;
+  let totalForfait = 0;
+
+  // Prepare table data and calculate totals
+  const tableData = [];
+  if (command.items && command.items.length > 0) {
+    command.items.forEach((item) => {
+      const itemHT = item.montantHT || item.prixUnitaire * (item.quantite || 1);
+      const itemTTC = item.montantTTC || itemHT * (1 + (item.tva || 5.5) / 100);
+      
+      // Add the main product
+      tableData.push({
+        title: item.title || "N/A",
+        reference: item.reference || "",
+        description: item.description || "",
+        quantity: item.quantite || 1,
+        unitPrice: item.prixUnitaire || 0,
+        total: itemHT,
+        isForfait: false,
+        groupId: item.id || Math.random(),
+        hasForfait: item.forfait && parseFloat(item.forfait) > 0
+      });
+
+      totalBaseHT += itemHT;
+      totalBaseTTC += itemTTC;
+
+      // Add forfait as a separate entry if it exists
+      if (item.forfait && parseFloat(item.forfait) > 0) {
+        const forfaitAmount = parseFloat(item.forfait);
+        tableData.push({
+          title: "Forfait pose",
+          reference: "",
+          description: "",
+          quantity: 1,
+          unitPrice: forfaitAmount,
+          total: forfaitAmount,
+          isForfait: true,
+          groupId: item.id || Math.random(),
+          hasForfait: false
+        });
+
+        totalForfait += forfaitAmount;
+      }
+    });
+  } else {
+    // Single product case
+    const itemHT = command.totalHT || command.prixUnitaire * (command.quantite || 1);
+    const itemTTC = command.totalTTC || itemHT * (1 + (command.tva || 5.5) / 100);
+    
+    tableData.push({
+      title: command.title || "N/A",
+      reference: command.reference || "",
+      description: command.description || "",
+      quantity: command.quantite || 1,
+      unitPrice: command.prixUnitaire || command.totalHT / (command.quantite || 1),
+      total: itemHT,
+      isForfait: false,
+      groupId: command.id || Math.random(),
+      hasForfait: command.forfait && parseFloat(command.forfait) > 0
+    });
+
+    totalBaseHT += itemHT;
+    totalBaseTTC += itemTTC;
+
+    // Add forfait as a separate entry if it exists
+    if (command.forfait && parseFloat(command.forfait) > 0) {
+      const forfaitAmount = parseFloat(command.forfait);
+      tableData.push({
+        title: "Forfait pose",
+        reference: "",
+        description: "",
+        quantity: 1,
+        unitPrice: forfaitAmount,
+        total: forfaitAmount,
+        isForfait: true,
+        groupId: command.id || Math.random(),
+        hasForfait: false
+      });
+
+      totalForfait += forfaitAmount;
+    }
+  }
+
+  // CORRECTED: Calculate TVA including forfait with 5.5% TVA
+  // Forfait is also subject to TVA
+  // const forfaitHT = totalForfait / 1.055;  // HT portion of forfait
+  // const forfaitTVA = totalForfait - forfaitHT;  // TVA portion of forfait
+
+  // // Base TVA calculation (from products)
+  // const baseTVA = totalBaseTTC - totalBaseHT;
+
+  // // Total calculations including forfait
+  // const finalTotalHT = totalBaseHT + forfaitHT;
+  // const finalTotalTVA = baseTVA + forfaitTVA;
+  // const finalTotalTTC = totalBaseTTC + totalForfait;
+
+  // // Use calculated totals or fallback to command totals (prioritize calculated)
+  // const usedTotalHT = finalTotalHT || command.totalHT;
+  // const usedTotalTVA = finalTotalTVA || command.totalTVA;
+  // const usedTotalTTC = finalTotalTTC || command.totalTTC;
+  // === TVA & TOTALS CALCULATION ===
+
+// TVA rate
+const tvaRate = (command.tva || 5.5) / 100;
+
+// Product totals (subject to TVA)
+const productTotalHT = totalBaseHT; // e.g. 2222
+const productTotalTVA = productTotalHT * tvaRate; // 122.21
+const productTotalTTC = productTotalHT + productTotalTVA; // 2344.21
+
+// Forfait (already TTC, no TVA)
+const forfaitTTC = totalForfait; // e.g. 360
+
+// === FINAL TOTALS ===
+const finalTotalHT = productTotalHT + forfaitTTC;  // HT includes forfait TTC
+const finalTotalTVA = productTotalTVA;             // only product TVA
+const finalTotalTTC = finalTotalHT + finalTotalTVA; // TTC = HT + TVA
+
+// === Values used in recap ===
+const usedTotalHT = Number(finalTotalHT.toFixed(2));
+const usedTotalTVA = Number(finalTotalTVA.toFixed(2));
+const usedTotalTTC = Number(finalTotalTTC.toFixed(2));
+
+  
   doc.setTextColor(0, 0, 0);
   doc.setFont(undefined, "Helvetica");
   doc.setFontSize(10);
-  doc.text(`Page(s): 1 sur ${command.items && command.items.length > 2 ? '2' : '1'}`, pageWidth - margin, 115, { align: "right" });
+  
+  // === CORRECTION: Group products with their forfaits for pagination ===
+  const groupedProducts = [];
+  let currentGroup = [];
+  
+  tableData.forEach((item, index) => {
+    if (item.isForfait) {
+      // Forfait always stays with its product group
+      currentGroup.push(item);
+      groupedProducts.push([...currentGroup]);
+      currentGroup = [];
+    } else {
+      if (currentGroup.length > 0) {
+        groupedProducts.push([...currentGroup]);
+      }
+      currentGroup = [item];
+      
+      // If this is the last item and has no forfait, add it now
+      if (index === tableData.length - 1) {
+        groupedProducts.push([...currentGroup]);
+      }
+    }
+  });
+
+  // Calculate pagination based on grouped products
+  // let productsPage1 = [];
+  // let productsPage2 = [];
+  // let totalPages = 1;
+
+  // if (groupedProducts.length === 1) {
+  //   // Single product group (with or without forfait)
+  //   productsPage1 = groupedProducts[0];
+  //   totalPages = 2;
+  // } else if (groupedProducts.length === 2) {
+  //   // Two product groups
+  //   const firstGroup = groupedProducts[0];
+  //   const secondGroup = groupedProducts[1];
+    
+  //   // Estimate space needed (rough calculation)
+  //   const firstGroupHeight = firstGroup.reduce((height, item) => {
+  //     if (item.isForfait) return height + 4;
+  //     let itemHeight = 10; // base height for title
+  //     if (item.reference) itemHeight += 4;
+  //     if (item.description) {
+  //       const descLines = doc.splitTextToSize(item.description, 100);
+  //       itemHeight += descLines.length * 4;
+  //     }
+  //     return itemHeight + 2;
+  //   }, 0);
+    
+  //   const secondGroupHeight = secondGroup.reduce((height, item) => {
+  //     if (item.isForfait) return height + 4;
+  //     let itemHeight = 10;
+  //     if (item.reference) itemHeight += 4;
+  //     if (item.description) {
+  //       const descLines = doc.splitTextToSize(item.description, 100);
+  //       itemHeight += descLines.length * 4;
+  //     }
+  //     return itemHeight + 2;
+  //   }, 0);
+    
+  //   // If both groups can fit on page 1 (approx 80mm available)
+  //   if (firstGroupHeight + secondGroupHeight <= 80) {
+  //     productsPage1 = [...firstGroup, ...secondGroup];
+  //     totalPages = 2;
+  //   } else {
+  //     // Put first group on page 1, second on page 2
+  //     productsPage1 = firstGroup;
+  //     productsPage2 = secondGroup;
+  //     totalPages = 2;
+  //   }
+  // } else if (groupedProducts.length > 2) {
+  //   // Multiple product groups - put first two groups on page 1, rest on page 2
+  //   productsPage1 = [...groupedProducts[0], ...groupedProducts[1]];
+  //   for (let i = 2; i < groupedProducts.length; i++) {
+  //     productsPage2.push(...groupedProducts[i]);
+  //   }
+  //   totalPages = 2;
+  // }
+  // Calculate pagination based on grouped products
+let productsPage1 = [];
+let productsPage2 = [];
+let totalPages = 1;
+
+if (groupedProducts.length === 1) {
+  // Single product group (with or without forfait) - PUT ON PAGE 1
+  productsPage1 = groupedProducts[0];  // ← Produit sur page 1
+  totalPages = 2;  // ← Toujours 2 pages même avec un seul produit
+} else if (groupedProducts.length === 2) {
+  // Two product groups - put both on page 1
+  productsPage1 = [...groupedProducts[0], ...groupedProducts[1]];
+  totalPages = 2;
+} else if (groupedProducts.length > 2) {
+  // Multiple product groups - put first two groups on page 1, rest on page 2
+  productsPage1 = [...groupedProducts[0], ...groupedProducts[1]];
+  for (let i = 2; i < groupedProducts.length; i++) {
+    productsPage2.push(...groupedProducts[i]);
+  }
+  totalPages = 2;
+}
+
+  doc.text(`Page(s): 1 sur ${totalPages}`, pageWidth - margin, 100, { align: "right" });
 
   doc.setTextColor(currentTextColors);
   doc.setFont(undefined, "Helvetica");
@@ -1255,7 +1138,7 @@ const handleDownload = (commandId, e) => {
   const originalTextColor = doc.getTextColor();
 
   // Calculate equal widths for the three numeric columns
-  const descWidth = 110;
+  const descWidth = 115;
   const availableWidth = pageWidth - 2 * margin - descWidth;
   const equalColumnWidth = availableWidth / 3;
 
@@ -1272,7 +1155,7 @@ const handleDownload = (commandId, e) => {
   const line2 = line1 + qteWidth;
   const line3 = line2 + prixWidth;
 
-  const headerY = 120;
+  const headerY = 105;
   const headerHeight = 8;
   const textY = headerY + 5;
   const firstLineY = headerY + headerHeight;
@@ -1291,108 +1174,119 @@ const handleDownload = (commandId, e) => {
   const prixCenter = prixX + prixWidth / 2;
   const ttcCenter = ttcX + ttcWidth / 2;
 
-  doc.text("Descriptif des travaux", descCenter, textY, { align: "center" });
+  doc.text("Descriptif", descCenter, textY, { align: "center" });
   doc.text("QTÉ", qteCenter, textY, { align: "center" });
   doc.text("Prix u. HT", prixCenter, textY, { align: "center" });
   doc.text("Total HT", ttcCenter, textY, { align: "center" });
 
   doc.setFont(undefined, "normal");
-  
-
-  // Prepare table data
-  const tableData = [];
-  if (command.items && command.items.length > 0) {
-    command.items.forEach((item) => {
-      tableData.push({
-        title: item.title || "N/A",
-        reference: item.reference || "",
-        description: item.description || "",
-        quantity: item.quantite || 1,
-        unitPrice: item.prixUnitaire || 0,
-        total: item.montantTTC || item.prixUnitaire * item.quantite * (1 + (item.tva || 0) / 100),
-      });
-    });
-  } else {
-    tableData.push({
-      title: command.title || "N/A",
-      reference: command.reference || "",
-      description: command.description || "",
-      quantity: command.quantite || 1,
-      unitPrice: command.prixUnitaire || command.totalHT / (command.quantite || 1),
-      total: command.totalTTC || 0,
-    });
-  }
-
-  // === NEW: Calculate which products go on page 1 vs page 2 ===
-  const maxProductsPage1 = 2; // Maximum 2 products on page 1
-  const productsPage1 = tableData.slice(0, maxProductsPage1);
-  const productsPage2 = tableData.slice(maxProductsPage1);
 
   // === PAGE 1 TABLE CONTENT ===
   let currentRowY = firstLineY + 8;
-  
+  let currentGroupId = null;
+
   productsPage1.forEach((row, index) => {
+    const isNewGroup = currentGroupId !== row.groupId;
+    currentGroupId = row.groupId;
+
+    // REDUCED LINE SPACING VALUES
     const titleFontSize = 10;
-    const refFontSize = 10;
-    const descFontSize = 9;
-    const titleRefSpacing = 0.5;
-    const refDescSpacing = 0.5;
-    const descLineSpacing = 0.3;
+    const refFontSize = 9;
+    const descFontSize = 8;
+    const titleRefSpacing = 0.7;
+    const refDescSpacing = 0.1;
+    const descLineSpacing = -0.9;
 
-    const descLines = doc.splitTextToSize(row.description, descWidth - 15);
-    const totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
-
-    const centerY = currentRowY + totalHeight / 2;
-
+    let totalHeight;
     let lineY = currentRowY;
+
+    if (row.isForfait) {
+      totalHeight = titleFontSize - 6;
+    } else {
+      const descLines = doc.splitTextToSize(row.description, descWidth - 15);
+      totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
+    }
 
     // Title
     doc.setFontSize(titleFontSize);
     doc.setFont(undefined, "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(row.title, descX + 5, lineY);
+    if (row.isForfait) {
+      doc.setTextColor(0, 0, 0);
+      doc.text(row.title, descX + 5, currentRowY - 4);
+    } else {
+      doc.setTextColor(0, 0, 0);
+      doc.text(row.title, descX + 5, lineY);
+    }
     lineY += titleFontSize;
 
     // Reference
-    doc.setFontSize(refFontSize);
-    doc.setFont(undefined, "italic");
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
-    lineY += refFontSize;
+    if (!row.isForfait && row.reference) {
+      doc.setFontSize(refFontSize);
+      doc.setFont(undefined, "italic");
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
+      lineY += refFontSize;
+    }
 
-    // Description with bullets
-    doc.setFontSize(descFontSize);
-    doc.setFont(undefined, "normal");
-    doc.setTextColor(0, 0, 0);
-    const rawDescLines = row.description.split("\n");
+    // Description
+    if (!row.isForfait && row.description) {
+      doc.setFontSize(descFontSize);
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(0, 0, 0);
+      const rawDescLines = row.description.split("\n");
 
-    rawDescLines.forEach((rawLine) => {
-      const lineWithBullet = `• ${rawLine}`;
-      const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-      wrappedLines.forEach((line) => {
-        doc.text(line, descX + 4, lineY);
-        lineY += descFontSize + descLineSpacing;
+      rawDescLines.forEach((rawLine) => {
+        const lineWithBullet = `• ${rawLine}`;
+        const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+        wrappedLines.forEach((line) => {
+          doc.text(line, descX + 4, lineY);
+          lineY += descFontSize + descLineSpacing;
+        });
       });
-    });
+    }
 
     // Numeric columns
     doc.setFontSize(9);
     doc.setFont(undefined, "normal");
     doc.setTextColor(0, 0, 0);
-    doc.text(row.quantity.toString(), qteX + qteWidth / 2, currentRowY, { align: "center" });
-    doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
-    doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY, { align: "center" });
-
-    currentRowY += totalHeight + 2;
-
-    // Add horizontal line between products (except after last product on page)
-    if (index < productsPage1.length - 1) {
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.3);
-      doc.line(margin + 5, currentRowY - 6, pageWidth - margin - 5, currentRowY - 6);
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.2);
+    
+    if (row.isForfait) {
+      doc.text(row.quantity.toString(), qteX + qteWidth / 2, currentRowY - 4, { align: "center" });
+      doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY - 4, { align: "center" });
+      doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY - 4, { align: "center" });
+    } else {
+      doc.text(row.quantity.toString(), qteX + qteWidth / 2, currentRowY, { align: "center" });
+      doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
+      doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY, { align: "center" });
     }
+
+    // Smart spacing based on grouping
+    // if (row.isForfait) {
+    //   currentRowY += totalHeight;
+    // } else {
+    //   const nextItem = productsPage1[index + 1];
+    //   const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+      
+    //   if (nextItemIsMyForfait) {
+    //     currentRowY += totalHeight;
+    //   } else {
+    //     currentRowY += totalHeight + 0.8;
+    //   }
+    // }
+    // Smart spacing based on grouping - INCREASED SPACE BEFORE FORFAIT
+if (row.isForfait) {
+  currentRowY += totalHeight;
+} else {
+  const nextItem = productsPage1[index + 1];
+  const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+  
+  if (nextItemIsMyForfait) {
+    // Add more space before the forfait line
+    currentRowY += totalHeight + 4; // Increased from just totalHeight to totalHeight + 4
+  } else {
+    currentRowY += totalHeight + 6;
+  }
+}
   });
 
   // Draw table frame for page 1
@@ -1420,14 +1314,18 @@ const handleDownload = (commandId, e) => {
   doc.setPage(1);
   addFooter(1);
 
-  // === PAGE 2 (only if there are products for page 2) ===
-  if (productsPage2.length > 0) {
+  // === PAGE 2 (always create page 2 if totalPages is 2) ===
+  if (totalPages === 2) {
     doc.addPage();
 
-    const marginTopp = 10;
+    const marginTopp = 5;
     const marginLeftp = 5;
     const logoWidthp = 40;
     const logoHeightp = 40;
+    const page2HeaderY = 55;
+const page2HeaderHeight = 8;
+const page2TextY = page2HeaderY + 5;
+const page2FirstLineY = page2HeaderY + page2HeaderHeight;
 
     // Left logo
     doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 40, 40);
@@ -1437,9 +1335,149 @@ const handleDownload = (commandId, e) => {
 
     // Page number
     doc.setFontSize(10);
-    doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 40);
+    doc.text(`Page(s): 2 sur ${totalPages}`, pageWidth - 30, marginTopp + 40);
 
-    // Table header for page 2
+    // If there are products for page 2, display them
+    if (productsPage2.length > 0) {
+      // Table header for page 2
+      const page2HeaderY = 55;
+      const page2HeaderHeight = 8;
+      const page2TextY = page2HeaderY + 5;
+      const page2FirstLineY = page2HeaderY + page2HeaderHeight;
+
+      // Draw header background
+      doc.setFillColor(21, 128, 61);
+      doc.rect(margin + 0.2, page2HeaderY + 0.2, pageWidth - 2 * margin - 0.4, page2HeaderHeight - 0.4, "F");
+      doc.line(margin, page2HeaderY, pageWidth - margin, page2HeaderY);
+
+      // Table headers
+      doc.setFont(undefined, "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text("Descriptif", descCenter, page2TextY, { align: "center" });
+      doc.text("QTÉ", qteCenter, page2TextY, { align: "center" });
+      doc.text("Prix u. HT", prixCenter, page2TextY, { align: "center" });
+      doc.text("Total HT", ttcCenter, page2TextY, { align: "center" });
+
+      doc.setFont(undefined, "normal");
+
+      // === PAGE 2 TABLE CONTENT ===
+      let page2CurrentRowY = page2FirstLineY + 8;
+      let currentGroupIdPage2 = null;
+
+      productsPage2.forEach((row, index) => {
+        const isNewGroup = currentGroupIdPage2 !== row.groupId;
+        currentGroupIdPage2 = row.groupId;
+
+        // REDUCED LINE SPACING VALUES
+        const titleFontSize = 12;
+        const refFontSize = 9;
+        const descFontSize = 8;
+        const titleRefSpacing = 0.3;
+        const refDescSpacing = 0.3;
+        const descLineSpacing = 0.1;
+
+        let totalHeight;
+        let lineY = page2CurrentRowY;
+
+        if (row.isForfait) {
+          totalHeight = titleFontSize - 6;
+        } else {
+          const descLines = doc.splitTextToSize(row.description, descWidth - 15);
+          totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
+        }
+
+        // Title
+        doc.setFontSize(titleFontSize);
+        doc.setFont(undefined, "bold");
+        if (row.isForfait) {
+          doc.setTextColor(0, 0, 0);
+          doc.text(row.title, descX + 5, page2CurrentRowY - 4);
+        } else {
+          doc.setTextColor(0, 0, 0);
+          doc.text(row.title, descX + 5, lineY);
+        }
+        lineY += titleFontSize;
+
+        // Reference
+        if (!row.isForfait && row.reference) {
+          doc.setFontSize(refFontSize);
+          doc.setFont(undefined, "italic");
+          doc.setTextColor(0, 0, 0);
+          doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
+          lineY += refFontSize;
+        }
+
+        // Description
+        if (!row.isForfait && row.description) {
+          doc.setFontSize(descFontSize);
+          doc.setFont(undefined, "normal");
+          doc.setTextColor(0, 0, 0);
+          const rawDescLines = row.description.split("\n");
+
+          rawDescLines.forEach((rawLine) => {
+            const lineWithBullet = `• ${rawLine}`;
+            const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+            wrappedLines.forEach((line) => {
+              doc.text(line, descX + 4, lineY);
+              lineY += descFontSize + descLineSpacing;
+            });
+          });
+        }
+
+        // Numeric columns
+        doc.setFontSize(9);
+        doc.setFont(undefined, "normal");
+        doc.setTextColor(0, 0, 0);
+        
+        if (row.isForfait) {
+          doc.text(row.quantity.toString(), qteX + qteWidth / 2, page2CurrentRowY - 4, { align: "center" });
+          doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, page2CurrentRowY - 4, { align: "center" });
+          doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, page2CurrentRowY - 4, { align: "center" });
+        } else {
+          doc.text(row.quantity.toString(), qteX + qteWidth / 2, page2CurrentRowY, { align: "center" });
+          doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, page2CurrentRowY, { align: "center" });
+          doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, page2CurrentRowY, { align: "center" });
+        }
+
+        // Smart spacing based on grouping
+        // if (row.isForfait) {
+        //   page2CurrentRowY += totalHeight;
+        // } else {
+        //   const nextItem = productsPage2[index + 1];
+        //   const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+          
+        //   if (nextItemIsMyForfait) {
+        //     page2CurrentRowY += totalHeight;
+        //   } else {
+        //     page2CurrentRowY += totalHeight + 0.8;
+        //   }
+        // }
+        // Smart spacing based on grouping
+if (row.isForfait) {
+  page2CurrentRowY += totalHeight;
+} else {
+  const nextItem = productsPage2[index + 1];
+  const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+  
+  if (nextItemIsMyForfait) {
+    page2CurrentRowY += totalHeight;
+  } else {
+    page2CurrentRowY += totalHeight + 6;
+  }
+}
+      });
+
+ 
+   
+    const page2TableEndY = pageHeight - 120;
+    doc.line(margin, page2HeaderY, margin, page2TableEndY);
+    doc.line(line1, page2HeaderY, line1, page2TableEndY);
+    doc.line(line2, page2HeaderY, line2, page2TableEndY);
+    doc.line(line3, page2HeaderY, line3, page2TableEndY);
+    doc.line(pageWidth - margin, page2HeaderY, pageWidth - margin, page2TableEndY);
+    doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
+  } else {
+    // Draw empty table frame for page 2
     const page2HeaderY = 55;
     const page2HeaderHeight = 8;
     const page2TextY = page2HeaderY + 5;
@@ -1449,98 +1487,26 @@ const handleDownload = (commandId, e) => {
     doc.setFillColor(21, 128, 61);
     doc.rect(margin + 0.2, page2HeaderY + 0.2, pageWidth - 2 * margin - 0.4, page2HeaderHeight - 0.4, "F");
     doc.line(margin, page2HeaderY, pageWidth - margin, page2HeaderY);
-
-    // Table headers
     doc.setFont(undefined, "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("Descriptif des travaux (suite)", descCenter, page2TextY, { align: "center" });
+    doc.text("Descriptif", descCenter, page2TextY, { align: "center" });
     doc.text("QTÉ", qteCenter, page2TextY, { align: "center" });
     doc.text("Prix u. HT", prixCenter, page2TextY, { align: "center" });
     doc.text("Total HT", ttcCenter, page2TextY, { align: "center" });
 
     doc.setFont(undefined, "normal");
-
-    // === PAGE 2 TABLE CONTENT ===
-    let page2CurrentRowY = page2FirstLineY + 8;
-
-    productsPage2.forEach((row, index) => {
-      const titleFontSize = 10;
-      const refFontSize = 10;
-      const descFontSize = 9;
-      const titleRefSpacing = 0.5;
-      const refDescSpacing = 0.5;
-      const descLineSpacing = 0.3;
-
-      const descLines = doc.splitTextToSize(row.description, descWidth - 15);
-      const totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
-
-      let lineY = page2CurrentRowY;
-
-      // Title
-      doc.setFontSize(titleFontSize);
-      doc.setFont(undefined, "bold");
-      doc.setTextColor(0, 0, 0);
-      doc.text(row.title, descX + 5, lineY);
-      lineY += titleFontSize;
-
-      // Reference
-      doc.setFontSize(refFontSize);
-      doc.setFont(undefined, "italic");
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
-      lineY += refFontSize;
-
-      // Description with bullets
-      doc.setFontSize(descFontSize);
-      doc.setFont(undefined, "normal");
-      doc.setTextColor(0, 0, 0);
-      const rawDescLines = row.description.split("\n");
-
-      rawDescLines.forEach((rawLine) => {
-        const lineWithBullet = `• ${rawLine}`;
-        const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-        wrappedLines.forEach((line) => {
-          doc.text(line, descX + 4, lineY);
-          lineY += descFontSize + descLineSpacing;
-        });
-      });
-
-      // Numeric columns
-      doc.setFontSize(9);
-      doc.setFont(undefined, "normal");
-      doc.setTextColor(0, 0, 0);
-      doc.text(row.quantity.toString(), qteX + qteWidth / 2, page2CurrentRowY, { align: "center" });
-      doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, page2CurrentRowY, { align: "center" });
-      doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, page2CurrentRowY, { align: "center" });
-
-      page2CurrentRowY += totalHeight + 2;
-
-      // Add horizontal line between products
-      if (index < productsPage2.length - 1) {
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.3);
-        doc.line(margin + 5, page2CurrentRowY - 2, pageWidth - margin - 5, page2CurrentRowY - 2);
-        doc.setDrawColor(0, 0, 0);
-        doc.setLineWidth(0.2);
-      }
-    });
-
-    // Draw table frame for page 2
-    const page2TableEndY = pageHeight - 120;
+    const page2TableEndY = page2FirstLineY + 120; // Hauteur minimale pour tableau vide
     doc.line(margin, page2HeaderY, margin, page2TableEndY);
     doc.line(line1, page2HeaderY, line1, page2TableEndY);
     doc.line(line2, page2HeaderY, line2, page2TableEndY);
     doc.line(line3, page2HeaderY, line3, page2TableEndY);
     doc.line(pageWidth - margin, page2HeaderY, pageWidth - margin, page2TableEndY);
     doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
-
-    const finalSousTotalY = page2TableEndY - 4;
-
-    
-
+  }
+  
 
     // === TVA Recap Section ===
-    let recapY = finalSousTotalY + 30;
+    let recapY = productsPage2.length > 0 ? (pageHeight - 90) : 200;
 
     // Section title
     doc.setFontSize(12);
@@ -1567,13 +1533,13 @@ const handleDownload = (commandId, e) => {
     doc.setFont(undefined, "bold");
     doc.text("Montant TVA:", col2X, recapY);
     doc.setFont(undefined, "normal");
-    doc.text(`${command.totalTVA || "42,40"} €`, col2X, recapY + 6);
+    doc.text(`${usedTotalTVA.toFixed(2)} €`, col2X, recapY + 6);
 
     // Base HT
     doc.setFont(undefined, "bold");
     doc.text("Base HT:", col3X, recapY);
     doc.setFont(undefined, "normal");
-    doc.text(`${command.totalHT.toFixed(2) || "424"} €`, col3X, recapY + 6);
+    doc.text(`${usedTotalHT.toFixed(2)} €`, col3X, recapY + 6);
 
     // Récapitulatif box
     const recapBoxX = pageWidth - 80;
@@ -1595,15 +1561,15 @@ const handleDownload = (commandId, e) => {
     doc.setFontSize(11);
     recapBoxY += 16;
     doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
-    doc.text(`${command.totalHT.toFixed(2) || "17 800,51"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+    doc.text(`${usedTotalHT.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
 
     recapBoxY += 8;
     doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
-    doc.text(`${command.totalTVA || "979,03"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+    doc.text(`${usedTotalTVA.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
 
     recapBoxY += 8;
     doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
-    doc.text(`${command.totalTTC.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
+    doc.text(`${usedTotalTTC.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
 
     // Signature Section
     recapY += 40;
@@ -1613,23 +1579,16 @@ const handleDownload = (commandId, e) => {
     recapY += 6;
     doc.text('"Bon pour accord"', margin, recapY);
 
-    doc.setPage(2);
     addFooter(2);
   }
 
   // Save the PDF
   doc.save(`Devis_${command.originalNumCommand}.pdf`);
 };
-
   const handleSendPdf = async (commandId, e) => {
     e.stopPropagation();
 
-    // const command = allCommands.find((cmd) => cmd._id === commandId);
-    // if (command.command_type !== "devis") {
-    //   return message.warning(
-    //     "Le devis est déjà validé et converti en commande."
-    //   );
-    // }
+  
     setSendingEmails(prev => ({ ...prev, [commandId]: true }));
 
     const command = allCommands.find((cmd) => cmd._id === commandId);
@@ -1641,9 +1600,9 @@ const handleDownload = (commandId, e) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
-    const marginTop = 10;
+    const marginTop = 5;
     const marginLeft = 5;
-    const margin = 8;
+    const margin = 6;
     
     const addFooter = (pageNum) => {
       const footerY = pageHeight - 5;
@@ -1668,23 +1627,23 @@ const handleDownload = (commandId, e) => {
   
     // Company info on the right side
     doc.setFontSize(10);
-    const rightStartX = pageWidth - 50;
+    const rightStartX = pageWidth - 52;
   
     doc.setFont("Helvetica", "bold"); 
     doc.setTextColor(0, 0, 0);
-    doc.text("Entreprise:", rightStartX, 15);
+    doc.text("Entreprise:", rightStartX, 12);
   
     doc.setFont("Helvetica", "bold"); 
     doc.setTextColor(0, 128, 0);
-    doc.text("GLOBAL GREEN", rightStartX, 21);
+    doc.text("GLOBAL GREEN", rightStartX, 18);
   
     doc.setFont(undefined, "Helvetica");
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 27);
-    doc.text("41350 VINEUIL - France", rightStartX, 32);
-    doc.text("Contact@global-green.fr", rightStartX, 37);
-    doc.text("07 64 71 26 87", rightStartX, 42);
+    doc.text("641 AVENUE DU GRAIN D'OR", rightStartX, 24);
+    doc.text("41350 VINEUIL - France", rightStartX, 29);
+    doc.text("Contact@global-green.fr", rightStartX, 34);
+    doc.text("07 64 71 26 87", rightStartX, 39);
   
     doc.addImage(logorge, "JPEG", pageWidth / 2 - logoWidth / 2, marginLeft, logoWidth, logoHeight, marginTop);
   
@@ -1697,7 +1656,7 @@ const handleDownload = (commandId, e) => {
     doc.setFontSize(12);
     doc.setFont(undefined, "bold");
     doc.setTextColor(0, 0, 0);
-    const devisY = 60;
+    const devisY = 55;
     doc.text("Devis", margin, devisY);
   
     // Left info under "Devis"
@@ -1716,14 +1675,14 @@ const handleDownload = (commandId, e) => {
     const rightTexts = [
       `${command.nom || ""}`,
       `${command.address || ""}`,
-      `${command.ville || ""},  ${command.codepostal || ""}`,
+      `${command.ville || ""},   ${command.codepostal || ""}`,
       `${command.email || ""}`,
     ];
   
     const maxRightWidth = Math.max(...rightTexts.map(t => (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) / doc.internal.scaleFactor));
-    const rightStartXd = pageWidth - margin - maxRightWidth - 4;
+    const rightStartXd = pageWidth - margin - maxRightWidth;
   
-    let currentRightYy = 65;
+    let currentRightYy = 60;
     doc.setFont(undefined, "bold");
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
@@ -1750,7 +1709,7 @@ const handleDownload = (commandId, e) => {
       currentRightYy += LINE_SPACING + (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
     });
   
-    let currentLeftY = 69;
+    let currentLeftY = 62;
     leftTexts.forEach((text, index) => {
       doc.text(text, margin, currentLeftY);
       currentLeftY += LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
@@ -1762,19 +1721,243 @@ const handleDownload = (commandId, e) => {
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
   
-    const prestationsYStart = 100;
+    const prestationsYStart = 90;
     const lineSpacing = 6;
   
-    doc.setFontSize(11);
-    doc.text(`Nature des prestations:`, margin, prestationsYStart);
+    doc.setFontSize(10);
+    doc.text(`Nature de l'intervention:`, margin, prestationsYStart);
     doc.setFont(undefined, "Helvetica");
-    doc.text(`Installation et raccordement d'une pompe à chaleur AIR/EAU`, margin, prestationsYStart + lineSpacing);
-    doc.text(`Note: Fourniture des radiateurs par le client.`, margin, prestationsYStart + lineSpacing * 2);
+    let currentY = prestationsYStart + lineSpacing;
+    if (command.naturePrestations) {
+      const prestationsLines = doc.splitTextToSize(command.naturePrestations, pageWidth - margin * 2);
+      doc.text(prestationsLines, margin, currentY);
+      
+      // Calculate height based on number of lines
+      const prestationsHeight = prestationsLines.length * lineSpacing;
+      currentY += prestationsHeight;
+    } 
   
+    // Add Note from command data (with automatic "Note:" prefix from schema)
+    if (command.note) {
+      currentY += lineSpacing; // Add extra space before note
+      
+      // Ensure note has "Note:" prefix (safety check)
+      let noteText = command.note;
+      if (noteText && !noteText.trim().toLowerCase().startsWith('note:')) {
+        noteText = `Note: ${noteText.trim()}`;
+      }
+      
+      const noteLines = doc.splitTextToSize(noteText, pageWidth - margin * 2);
+      doc.text(noteLines, margin, currentY - 6);
+    }
+  
+    let totalBaseHT = 0;
+    let totalBaseTTC = 0;
+    let totalForfait = 0;
+  
+    // Prepare table data and calculate totals
+    const tableData = [];
+    if (command.items && command.items.length > 0) {
+      command.items.forEach((item) => {
+        const itemHT = item.montantHT || item.prixUnitaire * (item.quantite || 1);
+        const itemTTC = item.montantTTC || itemHT * (1 + (item.tva || 5.5) / 100);
+        
+        // Add the main product
+        tableData.push({
+          title: item.title || "N/A",
+          reference: item.reference || "",
+          description: item.description || "",
+          quantity: item.quantite || 1,
+          unitPrice: item.prixUnitaire || 0,
+          total: itemHT,
+          isForfait: false,
+          groupId: item.id || Math.random(),
+          hasForfait: item.forfait && parseFloat(item.forfait) > 0
+        });
+  
+        totalBaseHT += itemHT;
+        totalBaseTTC += itemTTC;
+  
+        // Add forfait as a separate entry if it exists
+        if (item.forfait && parseFloat(item.forfait) > 0) {
+          const forfaitAmount = parseFloat(item.forfait);
+          tableData.push({
+            title: "Forfait pose",
+            reference: "",
+            description: "",
+            quantity: 1,
+            unitPrice: forfaitAmount,
+            total: forfaitAmount,
+            isForfait: true,
+            groupId: item.id || Math.random(),
+            hasForfait: false
+          });
+  
+          totalForfait += forfaitAmount;
+        }
+      });
+    } else {
+      // Single product case
+      const itemHT = command.totalHT || command.prixUnitaire * (command.quantite || 1);
+      const itemTTC = command.totalTTC || itemHT * (1 + (command.tva || 5.5) / 100);
+      
+      tableData.push({
+        title: command.title || "N/A",
+        reference: command.reference || "",
+        description: command.description || "",
+        quantity: command.quantite || 1,
+        unitPrice: command.prixUnitaire || command.totalHT / (command.quantite || 1),
+        total: itemHT,
+        isForfait: false,
+        groupId: command.id || Math.random(),
+        hasForfait: command.forfait && parseFloat(command.forfait) > 0
+      });
+  
+      totalBaseHT += itemHT;
+      totalBaseTTC += itemTTC;
+  
+      // Add forfait as a separate entry if it exists
+      if (command.forfait && parseFloat(command.forfait) > 0) {
+        const forfaitAmount = parseFloat(command.forfait);
+        tableData.push({
+          title: "Forfait pose",
+          reference: "",
+          description: "",
+          quantity: 1,
+          unitPrice: forfaitAmount,
+          total: forfaitAmount,
+          isForfait: true,
+          groupId: command.id || Math.random(),
+          hasForfait: false
+        });
+  
+        totalForfait += forfaitAmount;
+      }
+    }
+  
+    // CORRECTED: Calculate TVA including forfait with 5.5% TVA
+    // Forfait is also subject to TVA
+    const forfaitHT = totalForfait / 1.055;  // HT portion of forfait
+    const forfaitTVA = totalForfait - forfaitHT;  // TVA portion of forfait
+  
+    // Base TVA calculation (from products)
+    const baseTVA = totalBaseTTC - totalBaseHT;
+  
+    // Total calculations including forfait
+    const finalTotalHT = totalBaseHT + forfaitHT;
+    const finalTotalTVA = baseTVA + forfaitTVA;
+    const finalTotalTTC = totalBaseTTC + totalForfait;
+  
+    // Use calculated totals or fallback to command totals (prioritize calculated)
+    const usedTotalHT = finalTotalHT || command.totalHT;
+    const usedTotalTVA = finalTotalTVA || command.totalTVA;
+    const usedTotalTTC = finalTotalTTC || command.totalTTC;
+    
     doc.setTextColor(0, 0, 0);
     doc.setFont(undefined, "Helvetica");
     doc.setFontSize(10);
-    doc.text(`Page(s): 1 sur ${command.items && command.items.length > 2 ? '2' : '1'}`, pageWidth - margin, 115, { align: "right" });
+    
+    // === CORRECTION: Group products with their forfaits for pagination ===
+    const groupedProducts = [];
+    let currentGroup = [];
+    
+    tableData.forEach((item, index) => {
+      if (item.isForfait) {
+        // Forfait always stays with its product group
+        currentGroup.push(item);
+        groupedProducts.push([...currentGroup]);
+        currentGroup = [];
+      } else {
+        if (currentGroup.length > 0) {
+          groupedProducts.push([...currentGroup]);
+        }
+        currentGroup = [item];
+        
+        // If this is the last item and has no forfait, add it now
+        if (index === tableData.length - 1) {
+          groupedProducts.push([...currentGroup]);
+        }
+      }
+    });
+  
+    // Calculate pagination based on grouped products
+    // let productsPage1 = [];
+    // let productsPage2 = [];
+    // let totalPages = 1;
+  
+    // if (groupedProducts.length === 1) {
+    //   // Single product group (with or without forfait)
+    //   productsPage1 = groupedProducts[0];
+    //   totalPages = 2;
+    // } else if (groupedProducts.length === 2) {
+    //   // Two product groups
+    //   const firstGroup = groupedProducts[0];
+    //   const secondGroup = groupedProducts[1];
+      
+    //   // Estimate space needed (rough calculation)
+    //   const firstGroupHeight = firstGroup.reduce((height, item) => {
+    //     if (item.isForfait) return height + 4;
+    //     let itemHeight = 10; // base height for title
+    //     if (item.reference) itemHeight += 4;
+    //     if (item.description) {
+    //       const descLines = doc.splitTextToSize(item.description, 100);
+    //       itemHeight += descLines.length * 4;
+    //     }
+    //     return itemHeight + 2;
+    //   }, 0);
+      
+    //   const secondGroupHeight = secondGroup.reduce((height, item) => {
+    //     if (item.isForfait) return height + 4;
+    //     let itemHeight = 10;
+    //     if (item.reference) itemHeight += 4;
+    //     if (item.description) {
+    //       const descLines = doc.splitTextToSize(item.description, 100);
+    //       itemHeight += descLines.length * 4;
+    //     }
+    //     return itemHeight + 2;
+    //   }, 0);
+      
+    //   // If both groups can fit on page 1 (approx 80mm available)
+    //   if (firstGroupHeight + secondGroupHeight <= 80) {
+    //     productsPage1 = [...firstGroup, ...secondGroup];
+    //     totalPages = 2;
+    //   } else {
+    //     // Put first group on page 1, second on page 2
+    //     productsPage1 = firstGroup;
+    //     productsPage2 = secondGroup;
+    //     totalPages = 2;
+    //   }
+    // } else if (groupedProducts.length > 2) {
+    //   // Multiple product groups - put first two groups on page 1, rest on page 2
+    //   productsPage1 = [...groupedProducts[0], ...groupedProducts[1]];
+    //   for (let i = 2; i < groupedProducts.length; i++) {
+    //     productsPage2.push(...groupedProducts[i]);
+    //   }
+    //   totalPages = 2;
+    // }
+    // Calculate pagination based on grouped products
+  let productsPage1 = [];
+  let productsPage2 = [];
+  let totalPages = 1;
+  
+  if (groupedProducts.length === 1) {
+    // Single product group (with or without forfait) - PUT ON PAGE 1
+    productsPage1 = groupedProducts[0];  // ← Produit sur page 1
+    totalPages = 2;  // ← Toujours 2 pages même avec un seul produit
+  } else if (groupedProducts.length === 2) {
+    // Two product groups - put both on page 1
+    productsPage1 = [...groupedProducts[0], ...groupedProducts[1]];
+    totalPages = 2;
+  } else if (groupedProducts.length > 2) {
+    // Multiple product groups - put first two groups on page 1, rest on page 2
+    productsPage1 = [...groupedProducts[0], ...groupedProducts[1]];
+    for (let i = 2; i < groupedProducts.length; i++) {
+      productsPage2.push(...groupedProducts[i]);
+    }
+    totalPages = 2;
+  }
+  
+    doc.text(`Page(s): 1 sur ${totalPages}`, pageWidth - margin, 100, { align: "right" });
   
     doc.setTextColor(currentTextColors);
     doc.setFont(undefined, "Helvetica");
@@ -1784,7 +1967,7 @@ const handleDownload = (commandId, e) => {
     const originalTextColor = doc.getTextColor();
   
     // Calculate equal widths for the three numeric columns
-    const descWidth = 110;
+    const descWidth = 115;
     const availableWidth = pageWidth - 2 * margin - descWidth;
     const equalColumnWidth = availableWidth / 3;
   
@@ -1801,7 +1984,7 @@ const handleDownload = (commandId, e) => {
     const line2 = line1 + qteWidth;
     const line3 = line2 + prixWidth;
   
-    const headerY = 120;
+    const headerY = 105;
     const headerHeight = 8;
     const textY = headerY + 5;
     const firstLineY = headerY + headerHeight;
@@ -1820,108 +2003,119 @@ const handleDownload = (commandId, e) => {
     const prixCenter = prixX + prixWidth / 2;
     const ttcCenter = ttcX + ttcWidth / 2;
   
-    doc.text("Descriptif des travaux", descCenter, textY, { align: "center" });
+    doc.text("Descriptif", descCenter, textY, { align: "center" });
     doc.text("QTÉ", qteCenter, textY, { align: "center" });
     doc.text("Prix u. HT", prixCenter, textY, { align: "center" });
     doc.text("Total HT", ttcCenter, textY, { align: "center" });
   
     doc.setFont(undefined, "normal");
-    
-  
-    // Prepare table data
-    const tableData = [];
-    if (command.items && command.items.length > 0) {
-      command.items.forEach((item) => {
-        tableData.push({
-          title: item.title || "N/A",
-          reference: item.reference || "",
-          description: item.description || "",
-          quantity: item.quantite || 1,
-          unitPrice: item.prixUnitaire || 0,
-          total: item.montantTTC || item.prixUnitaire * item.quantite * (1 + (item.tva || 0) / 100),
-        });
-      });
-    } else {
-      tableData.push({
-        title: command.title || "N/A",
-        reference: command.reference || "",
-        description: command.description || "",
-        quantity: command.quantite || 1,
-        unitPrice: command.prixUnitaire || command.totalHT / (command.quantite || 1),
-        total: command.totalTTC || 0,
-      });
-    }
-  
-    // === NEW: Calculate which products go on page 1 vs page 2 ===
-    const maxProductsPage1 = 2; // Maximum 2 products on page 1
-    const productsPage1 = tableData.slice(0, maxProductsPage1);
-    const productsPage2 = tableData.slice(maxProductsPage1);
   
     // === PAGE 1 TABLE CONTENT ===
     let currentRowY = firstLineY + 8;
-    
+    let currentGroupId = null;
+  
     productsPage1.forEach((row, index) => {
-      const titleFontSize = 10;
-      const refFontSize = 10;
-      const descFontSize = 9;
-      const titleRefSpacing = 0.5;
+      const isNewGroup = currentGroupId !== row.groupId;
+      currentGroupId = row.groupId;
+  
+      // REDUCED LINE SPACING VALUES
+      const titleFontSize = 12;
+      const refFontSize = 9;
+      const descFontSize = 8;
+      const titleRefSpacing = 1.5;
       const refDescSpacing = 0.5;
-      const descLineSpacing = 0.3;
+      const descLineSpacing = -0.5;
   
-      const descLines = doc.splitTextToSize(row.description, descWidth - 15);
-      const totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
-  
-      const centerY = currentRowY + totalHeight / 2;
-  
+      let totalHeight;
       let lineY = currentRowY;
+  
+      if (row.isForfait) {
+        totalHeight = titleFontSize - 6;
+      } else {
+        const descLines = doc.splitTextToSize(row.description, descWidth - 15);
+        totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
+      }
   
       // Title
       doc.setFontSize(titleFontSize);
       doc.setFont(undefined, "bold");
-      doc.setTextColor(0, 0, 0);
-      doc.text(row.title, descX + 5, lineY);
+      if (row.isForfait) {
+        doc.setTextColor(0, 0, 0);
+        doc.text(row.title, descX + 5, currentRowY - 4);
+      } else {
+        doc.setTextColor(0, 0, 0);
+        doc.text(row.title, descX + 5, lineY);
+      }
       lineY += titleFontSize;
   
       // Reference
-      doc.setFontSize(refFontSize);
-      doc.setFont(undefined, "italic");
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
-      lineY += refFontSize;
+      if (!row.isForfait && row.reference) {
+        doc.setFontSize(refFontSize);
+        doc.setFont(undefined, "italic");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
+        lineY += refFontSize;
+      }
   
-      // Description with bullets
-      doc.setFontSize(descFontSize);
-      doc.setFont(undefined, "normal");
-      doc.setTextColor(0, 0, 0);
-      const rawDescLines = row.description.split("\n");
+      // Description
+      if (!row.isForfait && row.description) {
+        doc.setFontSize(descFontSize);
+        doc.setFont(undefined, "normal");
+        doc.setTextColor(0, 0, 0);
+        const rawDescLines = row.description.split("\n");
   
-      rawDescLines.forEach((rawLine) => {
-        const lineWithBullet = `• ${rawLine}`;
-        const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-        wrappedLines.forEach((line) => {
-          doc.text(line, descX + 4, lineY);
-          lineY += descFontSize + descLineSpacing;
+        rawDescLines.forEach((rawLine) => {
+          const lineWithBullet = `• ${rawLine}`;
+          const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+          wrappedLines.forEach((line) => {
+            doc.text(line, descX + 4, lineY);
+            lineY += descFontSize + descLineSpacing;
+          });
         });
-      });
+      }
   
       // Numeric columns
       doc.setFontSize(9);
       doc.setFont(undefined, "normal");
       doc.setTextColor(0, 0, 0);
-      doc.text(row.quantity.toString(), qteX + qteWidth / 2, currentRowY, { align: "center" });
-      doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
-      doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY, { align: "center" });
-  
-      currentRowY += totalHeight + 2;
-  
-      // Add horizontal line between products (except after last product on page)
-      if (index < productsPage1.length - 1) {
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.3);
-        doc.line(margin + 5, currentRowY - 6, pageWidth - margin - 5, currentRowY - 6);
-        doc.setDrawColor(0, 0, 0);
-        doc.setLineWidth(0.2);
+      
+      if (row.isForfait) {
+        doc.text(row.quantity.toString(), qteX + qteWidth / 2, currentRowY - 4, { align: "center" });
+        doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY - 4, { align: "center" });
+        doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY - 4, { align: "center" });
+      } else {
+        doc.text(row.quantity.toString(), qteX + qteWidth / 2, currentRowY, { align: "center" });
+        doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
+        doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY, { align: "center" });
       }
+  
+      // Smart spacing based on grouping
+      // if (row.isForfait) {
+      //   currentRowY += totalHeight;
+      // } else {
+      //   const nextItem = productsPage1[index + 1];
+      //   const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+        
+      //   if (nextItemIsMyForfait) {
+      //     currentRowY += totalHeight;
+      //   } else {
+      //     currentRowY += totalHeight + 0.8;
+      //   }
+      // }
+      // Smart spacing based on grouping - INCREASED SPACE BEFORE FORFAIT
+  if (row.isForfait) {
+    currentRowY += totalHeight;
+  } else {
+    const nextItem = productsPage1[index + 1];
+    const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+    
+    if (nextItemIsMyForfait) {
+      // Add more space before the forfait line
+      currentRowY += totalHeight + 4; // Increased from just totalHeight to totalHeight + 4
+    } else {
+      currentRowY += totalHeight + 6;
+    }
+  }
     });
   
     // Draw table frame for page 1
@@ -1949,14 +2143,18 @@ const handleDownload = (commandId, e) => {
     doc.setPage(1);
     addFooter(1);
   
-    // === PAGE 2 (only if there are products for page 2) ===
-    if (productsPage2.length > 0) {
+    // === PAGE 2 (always create page 2 if totalPages is 2) ===
+    if (totalPages === 2) {
       doc.addPage();
   
-      const marginTopp = 10;
+      const marginTopp = 5;
       const marginLeftp = 5;
       const logoWidthp = 40;
       const logoHeightp = 40;
+      const page2HeaderY = 55;
+  const page2HeaderHeight = 8;
+  const page2TextY = page2HeaderY + 5;
+  const page2FirstLineY = page2HeaderY + page2HeaderHeight;
   
       // Left logo
       doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 40, 40);
@@ -1966,9 +2164,149 @@ const handleDownload = (commandId, e) => {
   
       // Page number
       doc.setFontSize(10);
-      doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 40);
+      doc.text(`Page(s): 2 sur ${totalPages}`, pageWidth - 30, marginTopp + 40);
   
-      // Table header for page 2
+      // If there are products for page 2, display them
+      if (productsPage2.length > 0) {
+        // Table header for page 2
+        const page2HeaderY = 55;
+        const page2HeaderHeight = 8;
+        const page2TextY = page2HeaderY + 5;
+        const page2FirstLineY = page2HeaderY + page2HeaderHeight;
+  
+        // Draw header background
+        doc.setFillColor(21, 128, 61);
+        doc.rect(margin + 0.2, page2HeaderY + 0.2, pageWidth - 2 * margin - 0.4, page2HeaderHeight - 0.4, "F");
+        doc.line(margin, page2HeaderY, pageWidth - margin, page2HeaderY);
+  
+        // Table headers
+        doc.setFont(undefined, "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text("Descriptif", descCenter, page2TextY, { align: "center" });
+        doc.text("QTÉ", qteCenter, page2TextY, { align: "center" });
+        doc.text("Prix u. HT", prixCenter, page2TextY, { align: "center" });
+        doc.text("Total HT", ttcCenter, page2TextY, { align: "center" });
+  
+        doc.setFont(undefined, "normal");
+  
+        // === PAGE 2 TABLE CONTENT ===
+        let page2CurrentRowY = page2FirstLineY + 8;
+        let currentGroupIdPage2 = null;
+  
+        productsPage2.forEach((row, index) => {
+          const isNewGroup = currentGroupIdPage2 !== row.groupId;
+          currentGroupIdPage2 = row.groupId;
+  
+          // REDUCED LINE SPACING VALUES
+          const titleFontSize = 12;
+          const refFontSize = 9;
+          const descFontSize = 8;
+          const titleRefSpacing = 0.3;
+          const refDescSpacing = 0.3;
+          const descLineSpacing = 0.1;
+  
+          let totalHeight;
+          let lineY = page2CurrentRowY;
+  
+          if (row.isForfait) {
+            totalHeight = titleFontSize - 6;
+          } else {
+            const descLines = doc.splitTextToSize(row.description, descWidth - 15);
+            totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
+          }
+  
+          // Title
+          doc.setFontSize(titleFontSize);
+          doc.setFont(undefined, "bold");
+          if (row.isForfait) {
+            doc.setTextColor(0, 0, 0);
+            doc.text(row.title, descX + 5, page2CurrentRowY - 4);
+          } else {
+            doc.setTextColor(0, 0, 0);
+            doc.text(row.title, descX + 5, lineY);
+          }
+          lineY += titleFontSize;
+  
+          // Reference
+          if (!row.isForfait && row.reference) {
+            doc.setFontSize(refFontSize);
+            doc.setFont(undefined, "italic");
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
+            lineY += refFontSize;
+          }
+  
+          // Description
+          if (!row.isForfait && row.description) {
+            doc.setFontSize(descFontSize);
+            doc.setFont(undefined, "normal");
+            doc.setTextColor(0, 0, 0);
+            const rawDescLines = row.description.split("\n");
+  
+            rawDescLines.forEach((rawLine) => {
+              const lineWithBullet = `• ${rawLine}`;
+              const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+              wrappedLines.forEach((line) => {
+                doc.text(line, descX + 4, lineY);
+                lineY += descFontSize + descLineSpacing;
+              });
+            });
+          }
+  
+          // Numeric columns
+          doc.setFontSize(9);
+          doc.setFont(undefined, "normal");
+          doc.setTextColor(0, 0, 0);
+          
+          if (row.isForfait) {
+            doc.text(row.quantity.toString(), qteX + qteWidth / 2, page2CurrentRowY - 4, { align: "center" });
+            doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, page2CurrentRowY - 4, { align: "center" });
+            doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, page2CurrentRowY - 4, { align: "center" });
+          } else {
+            doc.text(row.quantity.toString(), qteX + qteWidth / 2, page2CurrentRowY, { align: "center" });
+            doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, page2CurrentRowY, { align: "center" });
+            doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, page2CurrentRowY, { align: "center" });
+          }
+  
+          // Smart spacing based on grouping
+          // if (row.isForfait) {
+          //   page2CurrentRowY += totalHeight;
+          // } else {
+          //   const nextItem = productsPage2[index + 1];
+          //   const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+            
+          //   if (nextItemIsMyForfait) {
+          //     page2CurrentRowY += totalHeight;
+          //   } else {
+          //     page2CurrentRowY += totalHeight + 0.8;
+          //   }
+          // }
+          // Smart spacing based on grouping
+  if (row.isForfait) {
+    page2CurrentRowY += totalHeight;
+  } else {
+    const nextItem = productsPage2[index + 1];
+    const nextItemIsMyForfait = nextItem && nextItem.isForfait && nextItem.groupId === row.groupId;
+    
+    if (nextItemIsMyForfait) {
+      page2CurrentRowY += totalHeight;
+    } else {
+      page2CurrentRowY += totalHeight + 6;
+    }
+  }
+        });
+  
+   
+     
+      const page2TableEndY = pageHeight - 120;
+      doc.line(margin, page2HeaderY, margin, page2TableEndY);
+      doc.line(line1, page2HeaderY, line1, page2TableEndY);
+      doc.line(line2, page2HeaderY, line2, page2TableEndY);
+      doc.line(line3, page2HeaderY, line3, page2TableEndY);
+      doc.line(pageWidth - margin, page2HeaderY, pageWidth - margin, page2TableEndY);
+      doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
+    } else {
+      // Draw empty table frame for page 2
       const page2HeaderY = 55;
       const page2HeaderHeight = 8;
       const page2TextY = page2HeaderY + 5;
@@ -1978,98 +2316,26 @@ const handleDownload = (commandId, e) => {
       doc.setFillColor(21, 128, 61);
       doc.rect(margin + 0.2, page2HeaderY + 0.2, pageWidth - 2 * margin - 0.4, page2HeaderHeight - 0.4, "F");
       doc.line(margin, page2HeaderY, pageWidth - margin, page2HeaderY);
-  
-      // Table headers
       doc.setFont(undefined, "bold");
       doc.setTextColor(0, 0, 0);
-      doc.text("Descriptif des travaux (suite)", descCenter, page2TextY, { align: "center" });
+      doc.text("Descriptif", descCenter, page2TextY, { align: "center" });
       doc.text("QTÉ", qteCenter, page2TextY, { align: "center" });
       doc.text("Prix u. HT", prixCenter, page2TextY, { align: "center" });
       doc.text("Total HT", ttcCenter, page2TextY, { align: "center" });
   
       doc.setFont(undefined, "normal");
-  
-      // === PAGE 2 TABLE CONTENT ===
-      let page2CurrentRowY = page2FirstLineY + 8;
-  
-      productsPage2.forEach((row, index) => {
-        const titleFontSize = 10;
-        const refFontSize = 10;
-        const descFontSize = 9;
-        const titleRefSpacing = 0.5;
-        const refDescSpacing = 0.5;
-        const descLineSpacing = 0.3;
-  
-        const descLines = doc.splitTextToSize(row.description, descWidth - 15);
-        const totalHeight = titleFontSize + titleRefSpacing + refFontSize + refDescSpacing + descLines.length * (descFontSize + descLineSpacing);
-  
-        let lineY = page2CurrentRowY;
-  
-        // Title
-        doc.setFontSize(titleFontSize);
-        doc.setFont(undefined, "bold");
-        doc.setTextColor(0, 0, 0);
-        doc.text(row.title, descX + 5, lineY);
-        lineY += titleFontSize;
-  
-        // Reference
-        doc.setFontSize(refFontSize);
-        doc.setFont(undefined, "italic");
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Réf: ${row.reference}`, descX + 5, lineY);
-        lineY += refFontSize;
-  
-        // Description with bullets
-        doc.setFontSize(descFontSize);
-        doc.setFont(undefined, "normal");
-        doc.setTextColor(0, 0, 0);
-        const rawDescLines = row.description.split("\n");
-  
-        rawDescLines.forEach((rawLine) => {
-          const lineWithBullet = `• ${rawLine}`;
-          const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-          wrappedLines.forEach((line) => {
-            doc.text(line, descX + 4, lineY);
-            lineY += descFontSize + descLineSpacing;
-          });
-        });
-  
-        // Numeric columns
-        doc.setFontSize(9);
-        doc.setFont(undefined, "normal");
-        doc.setTextColor(0, 0, 0);
-        doc.text(row.quantity.toString(), qteX + qteWidth / 2, page2CurrentRowY, { align: "center" });
-        doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, page2CurrentRowY, { align: "center" });
-        doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, page2CurrentRowY, { align: "center" });
-  
-        page2CurrentRowY += totalHeight + 2;
-  
-        // Add horizontal line between products
-        if (index < productsPage2.length - 1) {
-          doc.setDrawColor(200, 200, 200);
-          doc.setLineWidth(0.3);
-          doc.line(margin + 5, page2CurrentRowY - 2, pageWidth - margin - 5, page2CurrentRowY - 2);
-          doc.setDrawColor(0, 0, 0);
-          doc.setLineWidth(0.2);
-        }
-      });
-  
-      // Draw table frame for page 2
-      const page2TableEndY = pageHeight - 120;
+      const page2TableEndY = page2FirstLineY + 120; // Hauteur minimale pour tableau vide
       doc.line(margin, page2HeaderY, margin, page2TableEndY);
       doc.line(line1, page2HeaderY, line1, page2TableEndY);
       doc.line(line2, page2HeaderY, line2, page2TableEndY);
       doc.line(line3, page2HeaderY, line3, page2TableEndY);
       doc.line(pageWidth - margin, page2HeaderY, pageWidth - margin, page2TableEndY);
       doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
-  
-      const finalSousTotalY = page2TableEndY - 4;
-  
-      
-  
+    }
+    
   
       // === TVA Recap Section ===
-      let recapY = finalSousTotalY + 30;
+      let recapY = productsPage2.length > 0 ? (pageHeight - 90) : 200;
   
       // Section title
       doc.setFontSize(12);
@@ -2096,13 +2362,13 @@ const handleDownload = (commandId, e) => {
       doc.setFont(undefined, "bold");
       doc.text("Montant TVA:", col2X, recapY);
       doc.setFont(undefined, "normal");
-      doc.text(`${command.totalTVA || "42,40"} €`, col2X, recapY + 6);
+      doc.text(`${usedTotalTVA.toFixed(2)} €`, col2X, recapY + 6);
   
       // Base HT
       doc.setFont(undefined, "bold");
       doc.text("Base HT:", col3X, recapY);
       doc.setFont(undefined, "normal");
-      doc.text(`${command.totalHT.toFixed(2) || "424"} €`, col3X, recapY + 6);
+      doc.text(`${usedTotalHT.toFixed(2)} €`, col3X, recapY + 6);
   
       // Récapitulatif box
       const recapBoxX = pageWidth - 80;
@@ -2124,15 +2390,15 @@ const handleDownload = (commandId, e) => {
       doc.setFontSize(11);
       recapBoxY += 16;
       doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${command.totalHT.toFixed(2) || "17 800,51"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+      doc.text(`${usedTotalHT.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
   
       recapBoxY += 8;
       doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${command.totalTVA || "979,03"} €`, pageWidth - margin, recapBoxY, { align: "right" });
+      doc.text(`${usedTotalTVA.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
   
       recapBoxY += 8;
       doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${command.totalTTC.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
+      doc.text(`${usedTotalTTC.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
   
       // Signature Section
       recapY += 40;
@@ -2142,7 +2408,6 @@ const handleDownload = (commandId, e) => {
       recapY += 6;
       doc.text('"Bon pour accord"', margin, recapY);
   
-      doc.setPage(2);
       addFooter(2);
     }
     const pdfBase64 = doc.output("datauristring");
@@ -2504,7 +2769,8 @@ const handleDownload = (commandId, e) => {
                 <Button
                   size="small"
                   onClick={() => handleGenerateBillingPlan(record)}
-                  disabled={record.command_type !== "facture"}
+                  // disabled={record.command_type !== "facture"}
+                  disabled={!record.billingPlan || (record.invoices && record.invoices.length > 0)}
                   style={{ width: "120px" }}
                 >
                   Plan Facturation
@@ -2956,25 +3222,50 @@ const handleDownload = (commandId, e) => {
 
             {/* Status management buttons - for Admin */}
             {role === "Admin" && record.status === "envoyé" && (
-              <>
-                <Button
-                  icon={<CheckOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation(); // Add this line
-                    handleUpdateStatus(record._id, "accepté");
-                  }}
-                  title="Marquer comme accepté"
-                />
-                <Button
-                  icon={<CloseOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation(); // Add this line
-                    handleUpdateStatus(record._id, "refusé");
-                  }}
-                  title="Marquer comme refusé"
-                  danger
-                />
-              </>
+              // <>
+              //   <Button
+              //     icon={<CheckOutlined />}
+              //     onClick={(e) => {
+              //       e.stopPropagation(); // Add this line
+              //       handleUpdateStatus(record._id, "accepté");
+              //     }}
+              //     title="Marquer comme accepté"
+              //   />
+              //   <Button
+              //     icon={<CloseOutlined />}
+              //     onClick={(e) => {
+              //       e.stopPropagation(); // Add this line
+              //       handleUpdateStatus(record._id, "refusé");
+              //     }}
+              //     title="Marquer comme refusé"
+              //     danger
+              //   />
+              // </>
+                 <>
+            <Button
+              type="primary"
+              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUpdateStatus(record._id, "accepté");
+              }}
+              title="Marquer comme accepté"
+            >
+              Validé
+            </Button>
+            <Button
+              type="primary"
+              danger
+              style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUpdateStatus(record._id, "refusé");
+              }}
+              title="Marquer comme refusé"
+            >
+              Refusé
+            </Button>
+          </>
             )}
 
             <Button
@@ -2993,7 +3284,7 @@ const handleDownload = (commandId, e) => {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold mb-6">Devis Management</h1>
+      <h1 className="text-xl font-bold mb-6">Gestion des Devis et Factures</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
@@ -3022,6 +3313,126 @@ const handleDownload = (commandId, e) => {
           </Button>
         </Card>
       </div>
+      {/* <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-4">Statistiques Factures</h2>
+        <Row gutter={16} className="mb-4">
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Total Factures"
+                value={factureStats.totalFactures}
+                prefix={<FileTextOutlined />}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Total HT Factures"
+                value={factureStats.totalHTFactures}
+                precision={2}
+                suffix="€"
+                prefix={<DollarOutlined />}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Total TTC Factures"
+                value={factureStats.totalTTCAFactures}
+                precision={2}
+                suffix="€"
+                prefix={<DollarOutlined />}
+                valueStyle={{ color: '#faad14' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Montant Payé"
+                value={factureStats.totalPaye}
+                precision={2}
+                suffix="€"
+                prefix={<CheckCircleOutlined />}
+                valueStyle={{ color: '#3f8600' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+        
+        <Row gutter={16}>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Reste à Payer"
+                value={factureStats.resteAPayer}
+                suffix="€"
+                prefix={<ClockCircleOutlined />}
+                valueStyle={{ color: '#cf1322' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Factures Payées"
+                value={factureStats.facturesPayees}
+                valueStyle={{ color: '#3f8600' }}
+                prefix={<CheckCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Factures En Attente"
+                value={factureStats.facturesEnAttente}
+                valueStyle={{ color: '#cf1322' }}
+                prefix={<ClockCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="Paiements Partiels"
+                value={factureStats.facturesPartielles}
+                valueStyle={{ color: '#fa8c16' }}
+                prefix={<ClockCircleOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
+        
+
+        {factureStats.totalTTCAFactures > 0 && (
+          <Card className="mt-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-semibold">Progression globale des paiements</span>
+              <span className="text-sm text-gray-600">
+                {((factureStats.totalPaye / factureStats.totalTTCAFactures) * 100)}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-4">
+              <div 
+                className="bg-green-500 h-4 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${(factureStats.totalPaye / factureStats.totalTTCAFactures) * 100}%`,
+                  maxWidth: '100%'
+                }}
+              ></div>
+            </div>
+            <div className="flex justify-between text-xs text-gray-600 mt-1">
+              <span>Payé: {factureStats.totalPaye}€</span>
+              <span>Total: {factureStats.totalTTCAFactures}€</span>
+            </div>
+          </Card>
+        )}
+      </div> */}
       <div className="mb-6">
         <h2 className="text-lg font-semibold mb-4">Statistiques Factures</h2>
         <Row gutter={16} className="mb-4">

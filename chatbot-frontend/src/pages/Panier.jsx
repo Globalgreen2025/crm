@@ -262,11 +262,36 @@ const Panier = ({ setCartQuantity, refreshTrigger }) => {
       dataIndex: "title",
       key: "title",
     },
+    // {
+    //   title: "Description",
+    //   dataIndex: "description",
+    //   key: "description",
+    //   render: (text) => <div style={{ whiteSpace: "pre-line" }}>{text}</div>,
+    // },
     {
       title: "Description",
       dataIndex: "description",
       key: "description",
-      render: (text) => <div style={{ whiteSpace: "pre-line" }}>{text}</div>,
+      render: (text, record, index) => {
+        if (!text) return '-';
+        
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        const bgColor = index % 2 === 0 ? '#f0f8ff' : '#fffaf0';
+        
+        return (
+          <div style={{ 
+            backgroundColor: bgColor,
+            padding: '8px',
+            borderRadius: '4px'
+          }}>
+            {lines.map((line, lineIndex) => (
+              <div key={lineIndex} style={{ lineHeight: '1.4' }}>
+                • {line}{lineIndex === lines.length - 1 ? '.' : ''}
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     {
       title: "Quantité",
