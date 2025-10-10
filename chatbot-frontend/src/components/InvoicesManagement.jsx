@@ -30,7 +30,7 @@ import axios from "axios";
 import moment from "moment";
 import { jsPDF } from "jspdf";
 import logo from "../assets/logo.jpeg";
-import logorge from "../assets/glgr.JPEG";
+import logorge from "../assets/glgr.jpeg";
 
 const { Option } = Select;
 const { Step } = Steps;
