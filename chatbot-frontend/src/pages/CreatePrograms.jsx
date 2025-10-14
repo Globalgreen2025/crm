@@ -283,27 +283,49 @@ const CreatePrograms = () => {
   });
 
   // Fonction pour calculer le prix de vente TTC
-  const calculatePrixVente = (prixAchatHT, TVA, tauxMarge) => {
+  // const calculatePrixVente = (prixAchatHT, TVA, tauxMarge) => {
+  //   const prixHT = parseFloat(prixAchatHT) || 0;
+  //   const tauxTVA = parseFloat(TVA) || 0;
+  //   const marge = parseFloat(tauxMarge) || 0;
+
+  //   if (prixHT > 0 && marge > 0) {
+  //     // Prix de vente HT = Prix d'achat HT * (1 + taux de marge/100)
+  //     const prixVenteHT = prixHT * (1 + marge / 100);
+      
+  //     // Prix de vente TTC = Prix de vente HT * (1 + TVA/100)
+  //     const prixVenteTTC = prixVenteHT * (1 + tauxTVA / 100);
+      
+  //     return prixVenteTTC.toFixed(2);
+  //   }
+  //   return "";
+  // };
+  const calculatePrixVente = (prixAchatHT, TVAappliquée, tauxMarge) => {
     const prixHT = parseFloat(prixAchatHT) || 0;
-    const tauxTVA = parseFloat(TVA) || 0;
+    const tauxTVA = parseFloat(TVAappliquée) || 0;
     const marge = parseFloat(tauxMarge) || 0;
 
-    if (prixHT > 0 && marge > 0) {
-      // Prix de vente HT = Prix d'achat HT * (1 + taux de marge/100)
+    console.log("Input values:", { prixAchatHT, TVAappliquée, tauxMarge });
+    console.log("Parsed values:", { prixHT, tauxTVA, marge });
+
+    if (prixHT > 0) {
+      // Apply margin first to HT, then apply TVA
       const prixVenteHT = prixHT * (1 + marge / 100);
-      
-      // Prix de vente TTC = Prix de vente HT * (1 + TVA/100)
       const prixVenteTTC = prixVenteHT * (1 + tauxTVA / 100);
+      
+      console.log("Calculation steps:", {
+        prixVenteHT,
+        prixVenteTTC
+      });
       
       return prixVenteTTC.toFixed(2);
     }
     return "";
-  };
+};
 
   // Effet pour recalculer le prix de vente quand les valeurs changent
   useEffect(() => {
-    const { prixAchatHT, TVA, tauxMarge } = formData;
-    const nouveauPrixVente = calculatePrixVente(prixAchatHT, TVA, tauxMarge);
+    const { prixAchatHT, TVAappliquée, tauxMarge } = formData;
+    const nouveauPrixVente = calculatePrixVente(prixAchatHT, TVAappliquée, tauxMarge);
     
     if (nouveauPrixVente) {
       setFormData(prev => ({ 
@@ -312,7 +334,7 @@ const CreatePrograms = () => {
       }));
       form.setFieldsValue({ prixVente: nouveauPrixVente });
     }
-  }, [formData.prixAchatHT, formData.TVA, formData.tauxMarge]);
+  }, [formData.prixAchatHT, formData.TVAappliquée, formData.tauxMarge]);
 
   useEffect(() => {
     if (id) {
