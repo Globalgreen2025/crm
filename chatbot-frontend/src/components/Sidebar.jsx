@@ -16,6 +16,7 @@ import {
   faTicket,
   faFileImport,
   faTruck,
+  faHandshake,   
 } from "@fortawesome/free-solid-svg-icons";
 import { UserOutlined } from "@ant-design/icons";
 import { Layout, Menu, Divider, Avatar } from "antd";
@@ -23,7 +24,7 @@ import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 import { UserContext } from "../UserContext";
 import { ToggleContext } from "./store/ToggleContext";
-import logo from "../assets/logo.jpeg";
+// import logo from "../assets/logo.jpeg";
 
 const { Sider } = Layout;
 const { SubMenu } = Menu;
@@ -202,7 +203,7 @@ const SideBar = () => {
     },
 
     {
-      key: "/CalendrierCommerciale", // Update the key if necessary
+      key: "/Calendrier", // Update the key if necessary
       icon: (
         <FontAwesomeIcon
           icon={faCalendarAlt}
@@ -223,7 +224,17 @@ const SideBar = () => {
       label: "Mes Réclamations",
       role: ["Admin", "Commercial"],
     },
-  
+    {
+      key: "/Sous-Traitance",
+      icon: (
+        <FontAwesomeIcon
+          icon={faHandshake}
+          style={{ fontSize: "18px", marginRight: "2px" }}
+        />
+      ),
+      label: "Sous-Traitance",
+      role: "Admin",
+    },
     {
       key: "Paramètres",
       icon: (

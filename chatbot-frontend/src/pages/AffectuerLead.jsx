@@ -49,30 +49,47 @@ const AffectuerLead = () => {
   const totalPages = Math.ceil(chatData.length / pageSize);
 
 
+// useEffect(() => {
+//     const getUserData = async () => {
+//       try {
+//         const response = await axios.get("/data");
+//         console.log("Fetched data leads:", response.data);
+//         console.log("Fetched leads:", response.data.chatData); 
+//         setChatData(response.data.chatData);
+//       } catch (err) {
+//         console.error("Failed to fetch data:", err);
+//         setError("Failed to fetch data");
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+//     getUserData();
+//   }, []);
 useEffect(() => {
-    const getUserData = async () => {
-      try {
-        const response = await axios.get("/data");
-        console.log("Fetched data leads:", response.data);
-        console.log("Fetched leads:", response.data.chatData); 
-        // if (response.data && response.data.chatData) {
-        //   const filteredData = response.data.chatData.filter(chat => chat.type === "all" || chat.type === "nouveau");
-        //   setChatData(filteredData);
-        //   console.log("Fetched leads:", filteredData);
-        // } else {
-        //   setChatData([]); // Fallback to an empty array
-        //   console.error("chatData is missing in the response");
-        // }
-        setChatData(response.data.chatData);
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-        setError("Failed to fetch data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    getUserData();
-  }, []);
+  const getUserData = async () => {
+    try {
+      const response = await axios.get("/data");
+      console.log("Fetched data leads:", response.data);
+      console.log("Fetched leads:", response.data.chatData); 
+      
+      // Sort data by creation date (newest first)
+      const sortedData = response.data.chatData.sort((a, b) => {
+        // Try different possible date fields, fallback to _id
+        const dateA = a.createdAt || a.updatedAt || a.date || a._id;
+        const dateB = b.createdAt || b.updatedAt || b.date || b._id;
+        return new Date(dateB) - new Date(dateA);
+      });
+      
+      setChatData(sortedData);
+    } catch (err) {
+      console.error("Failed to fetch data:", err);
+      setError("Failed to fetch data");
+    } finally {
+      setLoading(false);
+    }
+  };
+  getUserData();
+}, []);
 useEffect(() => {
   const getUserData = async () => {
     try {

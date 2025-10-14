@@ -32,6 +32,7 @@ import Facture from "./components/Facture";
 import ImportLeads from "./pages/ImportLeads";
 import TicketDetail from "./pages/Admin/TicketDetail";
 import Fournisseurs from "./pages/Fournisseurs";
+import SousTraitance from "./pages/SousTraitance";
 
 
 
@@ -62,7 +63,7 @@ function App() {
             <Route path="/create-produit/:id" element={<CreatePrograms />} />
 
 
-            <Route path="/CalendrierCommerciale" element={<MyCalendar />} />
+            <Route path="/Calendrier" element={<MyCalendar />} />
             <Route path="/Devis-Factures" element={<TéléchargerDevis />} />
             <Route path='/tickets' element={<Facture/>} />
             <Route path="/reclamations/:id" element={<TicketDetail />} />
@@ -83,6 +84,7 @@ function App() {
 
             <Route path="/leads/:id/create-command" element={<CreateCommand />} />
             <Route path="/leads/:id/create-command/:commandId" element={<CreateCommand />} />
+            <Route path="/Sous-Traitance" element={<SousTraitance/>}/>
 
             <Route path="/lead/:id" element={<LeadDetailsPage />}>
               <Route path="" element={<LeadDetailsPage />} />{" "}

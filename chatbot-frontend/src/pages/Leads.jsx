@@ -25,7 +25,7 @@ import {
   InfoCircleOutlined
 } from "@ant-design/icons";
 import { jwtDecode } from "jwt-decode";
-import logo from "../assets/logo.jpeg"
+// import logo from "../assets/logo.jpeg"
 
 const { Option } = Select;
 
@@ -42,11 +42,10 @@ const Leads = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredData, setFilteredData] = useState([]);
-  const [activeFilter, setActiveFilter] = useState("prospect");
+  const [activeFilter, setActiveFilter] = useState("tous");
   const [formVisible, setFormVisible] = useState(false);
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
-  const TVA = 5.5;
   const [produits, setProduits] = useState([]);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [previewImage, setPreviewImage] = useState(false);
@@ -73,11 +72,32 @@ const Leads = () => {
     fetchProduits();
   }, []);
 
+  // const handleFormSubmit = async (values) => {
+  //   setLoading(true);
+  //   try {
+  //     const response = await axios.post("/data", values);
+  //     message.success("Client créé avec succès !");
+  //     form.resetFields();
+  //     setClientModalVisible(false); 
+  //   } catch (error) {
+  //     console.error("Error adding client:", error);
+  //     message.error("Erreur lors de la création du client");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
   const handleFormSubmit = async (values) => {
     setLoading(true);
     try {
       const response = await axios.post("/data", values);
       message.success("Client créé avec succès !");
+      
+      // Add new lead to the beginning of both arrays
+      const newLead = response.data; // Assuming the response contains the new lead
+      
+      setChatData(prev => [newLead, ...prev]);
+      setFilteredData(prev => [newLead, ...prev]);
+      
       form.resetFields();
       setClientModalVisible(false); 
     } catch (error) {
@@ -305,6 +325,18 @@ const Leads = () => {
       key: "prestation",
       render: (text) => text || "",
     },
+    {
+      title: "commercial",
+      key: "commercial",
+      dataIndex: "commercial",
+      render: (text, record) => (
+        <div>
+          {record.commercial
+            ? `${record.commercial.prenom} ${record.commercial.nom}`
+            : "N/A"}
+        </div>
+      ),
+    },
     //     prestation
     // societe
     // reglement
@@ -358,18 +390,7 @@ const Leads = () => {
         );
       },
     },
-    {
-      title: "commercial",
-      key: "commercial",
-      dataIndex: "commercial",
-      render: (text, record) => (
-        <div>
-          {record.commercial
-            ? `${record.commercial.prenom} ${record.commercial.nom}`
-            : "N/A"}
-        </div>
-      ),
-    },
+ 
     {
       title: <span style={{ fontSize: "12px" }}>Action</span>,
       key: "action",
@@ -392,25 +413,26 @@ const Leads = () => {
       ),
     },
   ];
-
   useEffect(() => {
     const getUserData = async () => {
       try {
         const response = await axios.get("/data");
         console.log("Fetched data:", response.data);
-        setChatData(response.data.chatData);
-
+        
+        // Sort data by creation date (newest first)
+        const sortedData = response.data.chatData.sort((a, b) => {
+          return new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date);
+        });
+        
+        setChatData(sortedData);
+  
         // Apply the initial filter right after setting the data
         if (activeFilter === "prospect") {
-          setFilteredData(
-            response.data.chatData.filter((item) => item.type === "prospect")
-          );
+          setFilteredData(sortedData.filter((item) => item.type === "prospect"));
         } else if (activeFilter === "client") {
-          setFilteredData(
-            response.data.chatData.filter((item) => item.type === "client")
-          );
+          setFilteredData(sortedData.filter((item) => item.type === "client"));
         } else {
-          setFilteredData(response.data.chatData);
+          setFilteredData(sortedData); // "tous" shows all data
         }
       } catch (err) {
         setError("Failed to fetch data");
@@ -418,9 +440,37 @@ const Leads = () => {
         setLoading(false);
       }
     };
-
+  
     getUserData();
-  }, [activeFilter]); // Add activeFilter to dependencies
+  }, [activeFilter]);
+  // useEffect(() => {
+  //   const getUserData = async () => {
+  //     try {
+  //       const response = await axios.get("/data");
+  //       console.log("Fetched data:", response.data);
+  //       setChatData(response.data.chatData);
+
+  //       // Apply the initial filter right after setting the data
+  //       if (activeFilter === "prospect") {
+  //         setFilteredData(
+  //           response.data.chatData.filter((item) => item.type === "prospect")
+  //         );
+  //       } else if (activeFilter === "client") {
+  //         setFilteredData(
+  //           response.data.chatData.filter((item) => item.type === "client")
+  //         );
+  //       } else {
+  //         setFilteredData(response.data.chatData);
+  //       }
+  //     } catch (err) {
+  //       setError("Failed to fetch data");
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+
+  //   getUserData();
+  // }, [activeFilter]);
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSpinner(true);
@@ -457,7 +507,7 @@ const Leads = () => {
       const filtered = chatData.filter((item) => item.type === "client");
       setFilteredData(filtered);
     } else {
-      setFilteredData(chatData); // Optional: show all
+      setFilteredData(chatData);
     }
   };
 
@@ -484,6 +534,12 @@ const Leads = () => {
           NOUVEAU PROSPET/CLIENT
           </h2>
           <div className="flex flex-row md:flex-row gap-1 sm:gap-4">
+          <Button
+              type={activeFilter === "tous" ? "primary" : "default"}
+              onClick={() => handleFilter("tous")}
+            >
+              Tous
+            </Button>
             <Button
               type={activeFilter === "prospect" ? "primary" : "default"}
               onClick={() => handleFilter("prospect")}
@@ -568,7 +624,7 @@ const Leads = () => {
                 title: (
                   <div className="flex flex-col items-center">
                     <div className="text-xs">{col.title}</div>
-                    {col.key !== "action" && (
+                    {col.key !== "action" && col.key !== "statusLead" && col.key !== "lastComment" &&  (
                       <Input
                         placeholder={`${col.title}`}
                         onChange={(e) => handleColumnSearch(e, col.key)}

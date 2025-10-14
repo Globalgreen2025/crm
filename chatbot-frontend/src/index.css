@@ -502,3 +502,7 @@ nav a {
   font-weight: 600;
   font-size: 16px;
 }
+/* Hide default calendar header */
+.ant-picker-calendar-full .ant-picker-panel .ant-picker-body thead {
+  display: none;
+}
