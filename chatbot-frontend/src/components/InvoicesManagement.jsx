@@ -95,7 +95,8 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
     const marginTop = 5;
-    const marginLeft = 5;
+    const marginLeft = -10;
+    const marginLefts = 5;
     const margin = 8;
     
     const addFooter = (pageNum) => {
@@ -117,10 +118,10 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
       doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
     };
   
-    const logoWidth = 40;
-    const logoHeight = 40;
-    const logoleftwidth = 40;
-    const logoleftheight = 40;
+    const logoWidth = 70;
+    const logoHeight = 70;
+    const logoleftwidth = 60;
+    const logoleftheight = 60;
   
     // Prepare table data
     const tableData = [];
@@ -272,7 +273,7 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
     doc.text("07 64 71 26 87", rightStartX, 39);
   
     // Center logo
-    doc.addImage(logorge, "JPEG", pageWidth/2 - logoWidth/2, marginLeft, logoWidth, logoHeight, marginTop);
+    doc.addImage(logorge, "JPEG", pageWidth/2 - logoWidth/2, marginLefts, logoWidth, logoHeight, marginTop);
   
     doc.setFont(undefined, "Helvetica");
     doc.setFontSize(11);
@@ -284,7 +285,7 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
     doc.setFontSize(12);
     doc.setFont(undefined, "bold");
     doc.setTextColor(0, 0, 0);
-    const invoiceY = 55;
+    const invoiceY = 50;
     
     doc.text("Facture - Solde", margin, invoiceY);
   
@@ -568,17 +569,17 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
     doc.addPage();
   
     const marginTopp = 10;
-    const marginLeftp = 5;
-    const logoWidthp = 40;
-    const logoHeightp = 40;
+    const marginLeftp = -10;
+    const logoWidthp = 70;
+    const logoHeightp = 70;
   
     // Logos on page 2
-    doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 40, 40);
+    doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 60, 60);
     doc.addImage(logorge, "JPEG", (pageWidth - logoWidthp) / 2, marginTopp, logoWidthp, logoHeightp);
   
     // Page number
     doc.setFontSize(10);
-    doc.text(`Page(s): 2 sur ${totalPages}`, pageWidth - 30, marginTopp + 60);
+    doc.text(`Page(s): 2 sur ${totalPages}`, pageWidth - 30, marginTopp + 50);
   
     // Invoice breakdown
     if (invoices.length > 0) {
@@ -586,7 +587,7 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
       doc.setFont(undefined, "bold");
       // doc.text("Détail des factures regroupées:", margin, marginTopp + 53);
       
-      let invoiceY = marginTopp + 60;
+      let invoiceY = marginTopp + 50;
       
       invoices.forEach((invoice, index) => {
         doc.setFont(undefined, "normal");
@@ -730,7 +731,7 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
       doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
     } else {
         // Draw empty table frame for page 2
-        const page2HeaderY = 80;
+        const page2HeaderY = 70;
         const page2HeaderHeight = 8;
         const page2TextY = page2HeaderY + 5;
         const page2FirstLineY = page2HeaderY + page2HeaderHeight;
@@ -825,7 +826,8 @@ const generateInvoicePdf = (invoice, command) => {
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const marginTop = 5;
-  const marginLeft = 5;
+  const marginLeft = -10;
+  const marginLefts = 5;
   const margin = 8;
   
   const addFooter = (pageNum) => {
@@ -847,10 +849,10 @@ const generateInvoicePdf = (invoice, command) => {
     doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
   };
 
-  const logoWidth = 40;
-  const logoHeight = 40;
-  const logoleftwidth = 40;
-  const logoleftheight = 40;
+  const logoWidth = 70;
+  const logoHeight = 70;
+  const logoleftwidth = 60;
+  const logoleftheight = 60;
 
   // Get billing plan data from command
   const billingPlan = command.billingPlan;
@@ -974,7 +976,7 @@ const generateInvoicePdf = (invoice, command) => {
     logorge,
     "JPEG",
     pageWidth/2 - logoWidth/2,
-    marginLeft,
+    marginLefts,
     logoWidth,
     logoHeight,
     marginTop, 
@@ -1304,13 +1306,29 @@ for (let group of itemGroups) {
       doc.setTextColor(0, 0, 0);
       const rawDescLines = row.description.split("\n");
 
+      // rawDescLines.forEach((rawLine) => {
+      //   const lineWithBullet = `• ${rawLine}`;
+      //   const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+      //   wrappedLines.forEach((line) => {
+      //     doc.text(line, descX + 4, lineY);
+      //     lineY += descFontSize + descLineSpacing;
+      //   });
+      // });
       rawDescLines.forEach((rawLine) => {
-        const lineWithBullet = `• ${rawLine}`;
-        const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-        wrappedLines.forEach((line) => {
-          doc.text(line, descX + 4, lineY);
+        const trimmedLine = rawLine.trim();
+        
+        if (trimmedLine) {
+          // Non-empty line: add bullet point
+          const lineWithBullet = `• ${trimmedLine}`;
+          const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+          wrappedLines.forEach((line) => {
+            doc.text(line, descX + 4, lineY);
+            lineY += descFontSize + descLineSpacing;
+          });
+        } else {
+          // Empty line: just move to next line without bullet point
           lineY += descFontSize + descLineSpacing;
-        });
+        }
       });
     }
 
@@ -1398,17 +1416,17 @@ if (row.isForfait) {
     doc.addPage();
 
     const marginTopp = 5;
-    const marginLeftp = 5;
-    const logoWidthp = 40;
-    const logoHeightp = 40;
+    const marginLeftp = -10;
+    const logoWidthp = 70;
+    const logoHeightp = 70;
 
     // Left logo
-    doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 40, 40);
+    doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 60, 60);
     doc.addImage(logorge, "JPEG", (pageWidth - logoWidthp) / 2, marginTopp, logoWidthp, logoHeightp);
 
     // Page number
     doc.setFontSize(10);
-    doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 60);
+    doc.text(`Page(s): 2 sur 2`, pageWidth - 30, marginTopp + 50);
 
     // Billing plan information
     if (installments.length > 0) {
@@ -1416,7 +1434,7 @@ if (row.isForfait) {
       doc.setFont(undefined, "bold");
       // doc.text("Plan de facturation complet:", margin, marginTopp + 55);
       
-      let installmentY = marginTopp + 60;
+      let installmentY = marginTopp + 40;
       
       installments.forEach((installment, index) => {
         const isCurrent = installment === currentInstallment;
@@ -1435,7 +1453,7 @@ if (row.isForfait) {
     }
 
     // Table header for page 2
-    const page2HeaderY = 80;
+    const page2HeaderY = 60;
     const page2HeaderHeight = 8;
     const page2TextY = page2HeaderY + 5;
     const page2FirstLineY = page2HeaderY + page2HeaderHeight;
@@ -1508,13 +1526,29 @@ if (row.isForfait) {
         doc.setTextColor(0, 0, 0);
         const rawDescLines = row.description.split("\n");
 
+        // rawDescLines.forEach((rawLine) => {
+        //   const lineWithBullet = `• ${rawLine}`;
+        //   const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+        //   wrappedLines.forEach((line) => {
+        //     doc.text(line, descX + 4, lineY);
+        //     lineY += descFontSize + descLineSpacing;
+        //   });
+        // });
         rawDescLines.forEach((rawLine) => {
-          const lineWithBullet = `• ${rawLine}`;
-          const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-          wrappedLines.forEach((line) => {
-            doc.text(line, descX + 4, lineY);
+          const trimmedLine = rawLine.trim();
+          
+          if (trimmedLine) {
+            // Non-empty line: add bullet point
+            const lineWithBullet = `• ${trimmedLine}`;
+            const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+            wrappedLines.forEach((line) => {
+              doc.text(line, descX + 4, lineY);
+              lineY += descFontSize + descLineSpacing;
+            });
+          } else {
+            // Empty line: just move to next line without bullet point
             lineY += descFontSize + descLineSpacing;
-          });
+          }
         });
       }
 
