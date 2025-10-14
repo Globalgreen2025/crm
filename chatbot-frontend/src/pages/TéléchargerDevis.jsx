@@ -31,8 +31,8 @@ import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import moment from "moment";
 import { jsPDF } from "jspdf";
-import logo from "../assets/logo.jpeg";
-import logorge from "../assets/glgr.jpeg";
+import logo from "../assets/logo.png";
+import logorge from "../assets/glgr.png";
 import GenerateBillingPlan from "../components/GenerateBillingPlan";
 import InvoicesManagement from "../components/InvoicesManagement";
 
@@ -748,8 +748,10 @@ const handleDownload = (commandId, e) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  const marginTop = 5;
-  const marginLeft = 5;
+  const marginTop = 2;
+  const marginTops = 5;
+  const marginLeft = -10;
+  const marginLefts = 5
   const margin = 6;
   
   const addFooter = (pageNum) => {
@@ -765,10 +767,10 @@ const handleDownload = (commandId, e) => {
     doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
   };
 
-  const logoWidth = 40;
-  const logoHeight = 40;
-  const logoleftwidth = 40;
-  const logoleftheight = 40;
+  const logoWidth = 70;
+  const logoHeight = 70;
+  const logoleftwidth = 60;
+  const logoleftheight = 60;
 
   // Add logos - left logo only
   doc.addImage(logo, "JPEG", marginLeft, marginTop, logoleftwidth, logoleftheight);
@@ -793,7 +795,7 @@ const handleDownload = (commandId, e) => {
   doc.text("Contact@global-green.fr", rightStartX, 34);
   doc.text("07 64 71 26 87", rightStartX, 39);
 
-  doc.addImage(logorge, "JPEG", pageWidth / 2 - logoWidth / 2, marginLeft, logoWidth, logoHeight, marginTop);
+  doc.addImage(logorge, "JPEG", pageWidth / 2 - logoWidth / 2, marginLefts, logoWidth, logoHeight, marginTops);
 
   doc.setFont(undefined, "Helvetica");
   doc.setFontSize(11);
@@ -804,7 +806,7 @@ const handleDownload = (commandId, e) => {
   doc.setFontSize(12);
   doc.setFont(undefined, "bold");
   doc.setTextColor(0, 0, 0);
-  const devisY = 55;
+  const devisY = 45;
   doc.text("Devis", margin, devisY);
 
   // Left info under "Devis"
@@ -830,7 +832,7 @@ const handleDownload = (commandId, e) => {
   const maxRightWidth = Math.max(...rightTexts.map(t => (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) / doc.internal.scaleFactor));
   const rightStartXd = pageWidth - margin - maxRightWidth;
 
-  let currentRightYy = 60;
+  let currentRightYy = 55;
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
@@ -857,7 +859,7 @@ const handleDownload = (commandId, e) => {
     currentRightYy += LINE_SPACING + (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
   });
 
-  let currentLeftY = 62;
+  let currentLeftY = 52;
   leftTexts.forEach((text, index) => {
     doc.text(text, margin, currentLeftY);
     currentLeftY += LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
@@ -869,7 +871,7 @@ const handleDownload = (commandId, e) => {
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
-  const prestationsYStart = 90;
+  const prestationsYStart = 80;
   const lineSpacing = 6;
 
   doc.setFontSize(10);
@@ -1128,7 +1130,7 @@ if (groupedProducts.length === 1) {
   totalPages = 2;
 }
 
-  doc.text(`Page(s): 1 sur ${totalPages}`, pageWidth - margin, 100, { align: "right" });
+  doc.text(`Page(s): 1 sur ${totalPages}`, pageWidth - margin, 95, { align: "right" });
 
   doc.setTextColor(currentTextColors);
   doc.setFont(undefined, "Helvetica");
@@ -1155,7 +1157,7 @@ if (groupedProducts.length === 1) {
   const line2 = line1 + qteWidth;
   const line3 = line2 + prixWidth;
 
-  const headerY = 105;
+  const headerY = 100;
   const headerHeight = 8;
   const textY = headerY + 5;
   const firstLineY = headerY + headerHeight;
@@ -1235,13 +1237,29 @@ if (groupedProducts.length === 1) {
       doc.setTextColor(0, 0, 0);
       const rawDescLines = row.description.split("\n");
 
+      // rawDescLines.forEach((rawLine) => {
+      //   const lineWithBullet = `• ${rawLine}`;
+      //   const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+      //   wrappedLines.forEach((line) => {
+      //     doc.text(line, descX + 4, lineY);
+      //     lineY += descFontSize + descLineSpacing;
+      //   });
+      // });
       rawDescLines.forEach((rawLine) => {
-        const lineWithBullet = `• ${rawLine}`;
-        const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-        wrappedLines.forEach((line) => {
-          doc.text(line, descX + 4, lineY);
+        const trimmedLine = rawLine.trim();
+        
+        if (trimmedLine) {
+          // Non-empty line: add bullet point
+          const lineWithBullet = `• ${trimmedLine}`;
+          const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+          wrappedLines.forEach((line) => {
+            doc.text(line, descX + 4, lineY);
+            lineY += descFontSize + descLineSpacing;
+          });
+        } else {
+          // Empty line: just move to next line without bullet point
           lineY += descFontSize + descLineSpacing;
-        });
+        }
       });
     }
 
@@ -1290,7 +1308,7 @@ if (row.isForfait) {
   });
 
   // Draw table frame for page 1
-  const tableEndY = pageHeight - 20;
+  const tableEndY = pageHeight - 10;
   doc.line(margin, headerY, margin, tableEndY);
   doc.line(line1, headerY, line1, tableEndY);
   doc.line(line2, headerY, line2, tableEndY);
@@ -1319,16 +1337,16 @@ if (row.isForfait) {
     doc.addPage();
 
     const marginTopp = 5;
-    const marginLeftp = 5;
-    const logoWidthp = 40;
-    const logoHeightp = 40;
+    const marginLeftp = -10;
+    const logoWidthp = 70;
+    const logoHeightp = 70;
     const page2HeaderY = 55;
 const page2HeaderHeight = 8;
 const page2TextY = page2HeaderY + 5;
 const page2FirstLineY = page2HeaderY + page2HeaderHeight;
 
     // Left logo
-    doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 40, 40);
+    doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 60, 60);
 
     // Center logo
     doc.addImage(logorge, "JPEG", (pageWidth - logoWidthp) / 2, marginTopp, logoWidthp, logoHeightp);
@@ -1340,7 +1358,7 @@ const page2FirstLineY = page2HeaderY + page2HeaderHeight;
     // If there are products for page 2, display them
     if (productsPage2.length > 0) {
       // Table header for page 2
-      const page2HeaderY = 55;
+      const page2HeaderY = 40;
       const page2HeaderHeight = 8;
       const page2TextY = page2HeaderY + 5;
       const page2FirstLineY = page2HeaderY + page2HeaderHeight;
@@ -1469,7 +1487,7 @@ if (row.isForfait) {
 
  
    
-    const page2TableEndY = pageHeight - 120;
+    const page2TableEndY = pageHeight - 110;
     doc.line(margin, page2HeaderY, margin, page2TableEndY);
     doc.line(line1, page2HeaderY, line1, page2TableEndY);
     doc.line(line2, page2HeaderY, line2, page2TableEndY);
@@ -1600,8 +1618,10 @@ if (row.isForfait) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
-    const marginTop = 5;
-    const marginLeft = 5;
+    const marginTop = 2;
+    const marginTops = 5;
+    const marginLeft = -10;
+    const marginLefts = 5
     const margin = 6;
     
     const addFooter = (pageNum) => {
@@ -1617,10 +1637,10 @@ if (row.isForfait) {
       doc.text(rightText, pageWidth - margin, footerY, { align: "right" });
     };
   
-    const logoWidth = 40;
-    const logoHeight = 40;
-    const logoleftwidth = 40;
-    const logoleftheight = 40;
+    const logoWidth = 70;
+    const logoHeight = 70;
+    const logoleftwidth = 60;
+    const logoleftheight = 60;
   
     // Add logos - left logo only
     doc.addImage(logo, "JPEG", marginLeft, marginTop, logoleftwidth, logoleftheight);
@@ -1645,7 +1665,7 @@ if (row.isForfait) {
     doc.text("Contact@global-green.fr", rightStartX, 34);
     doc.text("07 64 71 26 87", rightStartX, 39);
   
-    doc.addImage(logorge, "JPEG", pageWidth / 2 - logoWidth / 2, marginLeft, logoWidth, logoHeight, marginTop);
+    doc.addImage(logorge, "JPEG", pageWidth / 2 - logoWidth / 2, marginLefts, logoWidth, logoHeight, marginTops);
   
     doc.setFont(undefined, "Helvetica");
     doc.setFontSize(11);
@@ -1656,7 +1676,7 @@ if (row.isForfait) {
     doc.setFontSize(12);
     doc.setFont(undefined, "bold");
     doc.setTextColor(0, 0, 0);
-    const devisY = 55;
+    const devisY = 45;
     doc.text("Devis", margin, devisY);
   
     // Left info under "Devis"
@@ -1682,7 +1702,7 @@ if (row.isForfait) {
     const maxRightWidth = Math.max(...rightTexts.map(t => (doc.getStringUnitWidth(t) * doc.internal.getFontSize()) / doc.internal.scaleFactor));
     const rightStartXd = pageWidth - margin - maxRightWidth;
   
-    let currentRightYy = 60;
+    let currentRightYy = 55;
     doc.setFont(undefined, "bold");
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
@@ -1709,7 +1729,7 @@ if (row.isForfait) {
       currentRightYy += LINE_SPACING + (index < otherRightTexts.length - 1 ? SECTION_SPACING : 0);
     });
   
-    let currentLeftY = 62;
+    let currentLeftY = 52;
     leftTexts.forEach((text, index) => {
       doc.text(text, margin, currentLeftY);
       currentLeftY += LINE_SPACING + (index < leftTexts.length - 1 ? SECTION_SPACING : 0);
@@ -1721,7 +1741,7 @@ if (row.isForfait) {
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
   
-    const prestationsYStart = 90;
+    const prestationsYStart = 80;
     const lineSpacing = 6;
   
     doc.setFontSize(10);
@@ -1837,21 +1857,44 @@ if (row.isForfait) {
   
     // CORRECTED: Calculate TVA including forfait with 5.5% TVA
     // Forfait is also subject to TVA
-    const forfaitHT = totalForfait / 1.055;  // HT portion of forfait
-    const forfaitTVA = totalForfait - forfaitHT;  // TVA portion of forfait
+    // const forfaitHT = totalForfait / 1.055;  // HT portion of forfait
+    // const forfaitTVA = totalForfait - forfaitHT;  // TVA portion of forfait
   
-    // Base TVA calculation (from products)
-    const baseTVA = totalBaseTTC - totalBaseHT;
+    // // Base TVA calculation (from products)
+    // const baseTVA = totalBaseTTC - totalBaseHT;
   
-    // Total calculations including forfait
-    const finalTotalHT = totalBaseHT + forfaitHT;
-    const finalTotalTVA = baseTVA + forfaitTVA;
-    const finalTotalTTC = totalBaseTTC + totalForfait;
+    // // Total calculations including forfait
+    // const finalTotalHT = totalBaseHT + forfaitHT;
+    // const finalTotalTVA = baseTVA + forfaitTVA;
+    // const finalTotalTTC = totalBaseTTC + totalForfait;
   
-    // Use calculated totals or fallback to command totals (prioritize calculated)
-    const usedTotalHT = finalTotalHT || command.totalHT;
-    const usedTotalTVA = finalTotalTVA || command.totalTVA;
-    const usedTotalTTC = finalTotalTTC || command.totalTTC;
+    // // Use calculated totals or fallback to command totals (prioritize calculated)
+    // const usedTotalHT = finalTotalHT || command.totalHT;
+    // const usedTotalTVA = finalTotalTVA || command.totalTVA;
+    // const usedTotalTTC = finalTotalTTC || command.totalTTC;
+    // === TVA & TOTALS CALCULATION ===
+  
+  // TVA rate
+  const tvaRate = (command.tva || 5.5) / 100;
+  
+  // Product totals (subject to TVA)
+  const productTotalHT = totalBaseHT; // e.g. 2222
+  const productTotalTVA = productTotalHT * tvaRate; // 122.21
+  const productTotalTTC = productTotalHT + productTotalTVA; // 2344.21
+  
+  // Forfait (already TTC, no TVA)
+  const forfaitTTC = totalForfait; // e.g. 360
+  
+  // === FINAL TOTALS ===
+  const finalTotalHT = productTotalHT + forfaitTTC;  // HT includes forfait TTC
+  const finalTotalTVA = productTotalTVA;             // only product TVA
+  const finalTotalTTC = finalTotalHT + finalTotalTVA; // TTC = HT + TVA
+  
+  // === Values used in recap ===
+  const usedTotalHT = Number(finalTotalHT.toFixed(2));
+  const usedTotalTVA = Number(finalTotalTVA.toFixed(2));
+  const usedTotalTTC = Number(finalTotalTTC.toFixed(2));
+  
     
     doc.setTextColor(0, 0, 0);
     doc.setFont(undefined, "Helvetica");
@@ -1957,7 +2000,7 @@ if (row.isForfait) {
     totalPages = 2;
   }
   
-    doc.text(`Page(s): 1 sur ${totalPages}`, pageWidth - margin, 100, { align: "right" });
+    doc.text(`Page(s): 1 sur ${totalPages}`, pageWidth - margin, 95, { align: "right" });
   
     doc.setTextColor(currentTextColors);
     doc.setFont(undefined, "Helvetica");
@@ -1984,7 +2027,7 @@ if (row.isForfait) {
     const line2 = line1 + qteWidth;
     const line3 = line2 + prixWidth;
   
-    const headerY = 105;
+    const headerY = 100;
     const headerHeight = 8;
     const textY = headerY + 5;
     const firstLineY = headerY + headerHeight;
@@ -2019,12 +2062,12 @@ if (row.isForfait) {
       currentGroupId = row.groupId;
   
       // REDUCED LINE SPACING VALUES
-      const titleFontSize = 12;
+      const titleFontSize = 10;
       const refFontSize = 9;
       const descFontSize = 8;
-      const titleRefSpacing = 1.5;
-      const refDescSpacing = 0.5;
-      const descLineSpacing = -0.5;
+      const titleRefSpacing = 0.7;
+      const refDescSpacing = 0.1;
+      const descLineSpacing = -0.9;
   
       let totalHeight;
       let lineY = currentRowY;
@@ -2064,13 +2107,29 @@ if (row.isForfait) {
         doc.setTextColor(0, 0, 0);
         const rawDescLines = row.description.split("\n");
   
+        // rawDescLines.forEach((rawLine) => {
+        //   const lineWithBullet = `• ${rawLine}`;
+        //   const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+        //   wrappedLines.forEach((line) => {
+        //     doc.text(line, descX + 4, lineY);
+        //     lineY += descFontSize + descLineSpacing;
+        //   });
+        // });
         rawDescLines.forEach((rawLine) => {
-          const lineWithBullet = `• ${rawLine}`;
-          const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
-          wrappedLines.forEach((line) => {
-            doc.text(line, descX + 4, lineY);
+          const trimmedLine = rawLine.trim();
+          
+          if (trimmedLine) {
+            // Non-empty line: add bullet point
+            const lineWithBullet = `• ${trimmedLine}`;
+            const wrappedLines = doc.splitTextToSize(lineWithBullet, descWidth - 15);
+            wrappedLines.forEach((line) => {
+              doc.text(line, descX + 4, lineY);
+              lineY += descFontSize + descLineSpacing;
+            });
+          } else {
+            // Empty line: just move to next line without bullet point
             lineY += descFontSize + descLineSpacing;
-          });
+          }
         });
       }
   
@@ -2119,7 +2178,7 @@ if (row.isForfait) {
     });
   
     // Draw table frame for page 1
-    const tableEndY = pageHeight - 20;
+    const tableEndY = pageHeight - 10;
     doc.line(margin, headerY, margin, tableEndY);
     doc.line(line1, headerY, line1, tableEndY);
     doc.line(line2, headerY, line2, tableEndY);
@@ -2148,16 +2207,16 @@ if (row.isForfait) {
       doc.addPage();
   
       const marginTopp = 5;
-      const marginLeftp = 5;
-      const logoWidthp = 40;
-      const logoHeightp = 40;
+      const marginLeftp = -10;
+      const logoWidthp = 70;
+      const logoHeightp = 70;
       const page2HeaderY = 55;
   const page2HeaderHeight = 8;
   const page2TextY = page2HeaderY + 5;
   const page2FirstLineY = page2HeaderY + page2HeaderHeight;
   
       // Left logo
-      doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 40, 40);
+      doc.addImage(logo, "JPEG", marginLeftp, marginTopp, 60, 60);
   
       // Center logo
       doc.addImage(logorge, "JPEG", (pageWidth - logoWidthp) / 2, marginTopp, logoWidthp, logoHeightp);
@@ -2169,7 +2228,7 @@ if (row.isForfait) {
       // If there are products for page 2, display them
       if (productsPage2.length > 0) {
         // Table header for page 2
-        const page2HeaderY = 55;
+        const page2HeaderY = 40;
         const page2HeaderHeight = 8;
         const page2TextY = page2HeaderY + 5;
         const page2FirstLineY = page2HeaderY + page2HeaderHeight;
@@ -2298,7 +2357,7 @@ if (row.isForfait) {
   
    
      
-      const page2TableEndY = pageHeight - 120;
+      const page2TableEndY = pageHeight - 110;
       doc.line(margin, page2HeaderY, margin, page2TableEndY);
       doc.line(line1, page2HeaderY, line1, page2TableEndY);
       doc.line(line2, page2HeaderY, line2, page2TableEndY);
