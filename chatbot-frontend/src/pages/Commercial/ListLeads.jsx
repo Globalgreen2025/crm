@@ -34,51 +34,87 @@ const ListLeads = () => {
   const [pageSize, setPageSize] = useState(10);
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("prospect");
+  const [activeFilter, setActiveFilter] = useState("tous");
   const [filteredData, setFilteredData] = useState([]);
   const [form] = Form.useForm();
-  const TVA = 5.5;
   const [produits, setProduits] = useState([]);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const TVA = 5.5
 
+  // const handleColumnSearch = async (e, columnKey) => {
+  //   const value = e.target.value.toLowerCase().trim();
+  //   setSearchQuery(value);
+
+  //   try {
+  //     // If search value is empty, show all data
+  //     if (value === "") {
+  //       setFilteredData(chatData);
+  //       return;
+  //     }
+
+  //     // If searching on 'commercial', handle 'N/A' or empty value cases
+  //     if (columnKey === "commercial") {
+  //       const filteredData = chatData.filter((item) => {
+  //         const commercialValue = item[columnKey]
+  //           ? `${item[columnKey].prenom} ${item[columnKey].nom}`.toLowerCase()
+  //           : "n/a"; // Set 'n/a' as default if commercial is empty or null
+
+  //         return commercialValue.includes(value);
+  //       });
+  //       setFilteredData(filteredData);
+  //       return;
+  //     }
+
+  //     // Default search (for other fields)
+  //     const response = await axios.get("/search", {
+  //       params: {
+  //         query: value,
+  //         columnKey: columnKey,
+  //       },
+  //     });
+  //     setFilteredData(response.data);
+  //   } catch (error) {
+  //     console.error("Error in search:", error);
+  //     message.error("Error while searching.");
+  //   }
+  // };
   const handleColumnSearch = async (e, columnKey) => {
     const value = e.target.value.toLowerCase().trim();
     setSearchQuery(value);
-
+  
     try {
-      // If search value is empty, show all data
+      // If search value is empty, show all data from chatData (commercial's leads)
       if (value === "") {
         setFilteredData(chatData);
         return;
       }
-
+  
       // If searching on 'commercial', handle 'N/A' or empty value cases
       if (columnKey === "commercial") {
         const filteredData = chatData.filter((item) => {
           const commercialValue = item[columnKey]
             ? `${item[columnKey].prenom} ${item[columnKey].nom}`.toLowerCase()
             : "n/a"; // Set 'n/a' as default if commercial is empty or null
-
+  
           return commercialValue.includes(value);
         });
         setFilteredData(filteredData);
         return;
       }
-
-      // Default search (for other fields)
-      const response = await axios.get("/search", {
-        params: {
-          query: value,
-          columnKey: columnKey,
-        },
+  
+      // FIX: Search within chatData (commercial's leads) instead of calling API
+      const filteredData = chatData.filter((item) => {
+        const fieldValue = item[columnKey]?.toString().toLowerCase() || '';
+        return fieldValue.includes(value);
       });
-      setFilteredData(response.data);
+      
+      setFilteredData(filteredData);
+      
     } catch (error) {
       console.error("Error in search:", error);
       message.error("Error while searching.");
     }
   };
-
   useEffect(() => {
     const fetchProduits = async () => {
       const token = localStorage.getItem("token");
@@ -124,32 +160,31 @@ const ListLeads = () => {
     setCurrentPage(value);
   };
   const totalPages = Math.ceil(chatData.length / pageSize);
-
-  const fetchCoaches = async () => {
+  const fetchLeads = async () => {
     const token = localStorage.getItem("token");
     const decodedToken = jwtDecode(token); // Decode token to get user details
     const userId = decodedToken?.userId; // Extract user ID
     const userName = decodedToken?.name; // Extract full name
-
+  
     try {
       setLoading(true);
-
+  
       // Fetch leads from backend
       const response = await axios.get("/data", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
+  
       console.log("Response data:", response.data); // Debug response structure
-
+  
       // Ensure `allLeads` is an array
       const allLeads = response.data?.chatData || [];
       console.log("All leads:", allLeads); // Debug all leads
-
+  
       // Split user's full name into first and last names
       const nameParts = userName?.trim().split(" ") || [];
       const firstName = nameParts[1] || ""; // First name
       const lastName = nameParts[0] || ""; // Last name
-
+  
       // Filter leads based on the current commercial's info
       const filteredLeads = allLeads.filter((lead) => {
         const commercial = lead.commercial || {}; // Ensure commercial exists
@@ -160,18 +195,29 @@ const ListLeads = () => {
         );
       });
       console.log("Filtered leads:", filteredLeads); // Debug filtered leads
-
-      setChatData(filteredLeads); // Update state with filtered leads
+  
+      // Sort leads by creation date (newest first)
+      const sortedLeads = filteredLeads.sort((a, b) => {
+        const dateA = a.createdAt || a.updatedAt || a.date || a._id;
+        const dateB = b.createdAt || b.updatedAt || b.date || b._id;
+        return new Date(dateB) - new Date(dateA); // Newest first
+      });
+  
+      setChatData(sortedLeads); // Update state with sorted filtered leads
+      
+      // Use sortedLeads instead of filteredLeads
       if (activeFilter === "prospect") {
         setFilteredData(
-          response.data.chatData.filter((item) => item.type === "prospect")
+          sortedLeads.filter((item) => item.type === "prospect")
         );
       } else if (activeFilter === "client") {
         setFilteredData(
-          response.data.chatData.filter((item) => item.type === "client")
+          sortedLeads.filter((item) => item.type === "client")
         );
+      } else if (activeFilter === "tous") {
+        setFilteredData(sortedLeads); // Use sortedLeads here
       } else {
-        setFilteredData(response.data.chatData);
+        setFilteredData([]);
       }
     } catch (error) {
       console.error("Error fetching leads:", error);
@@ -181,6 +227,122 @@ const ListLeads = () => {
     }
   };
 
+  // const fetchLeads = async () => {
+  //   const token = localStorage.getItem("token");
+  //   const decodedToken = jwtDecode(token); // Decode token to get user details
+  //   const userId = decodedToken?.userId; // Extract user ID
+  //   const userName = decodedToken?.name; // Extract full name
+
+  //   try {
+  //     setLoading(true);
+
+  //     // Fetch leads from backend
+  //     const response = await axios.get("/data", {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
+
+  //     console.log("Response data:", response.data); // Debug response structure
+
+  //     // Ensure `allLeads` is an array
+  //     const allLeads = response.data?.chatData || [];
+  //     console.log("All leads:", allLeads); // Debug all leads
+
+  //     // Split user's full name into first and last names
+  //     const nameParts = userName?.trim().split(" ") || [];
+  //     const firstName = nameParts[1] || ""; // First name
+  //     const lastName = nameParts[0] || ""; // Last name
+
+  //     // Filter leads based on the current commercial's info
+  //     const filteredLeads = allLeads.filter((lead) => {
+  //       const commercial = lead.commercial || {}; // Ensure commercial exists
+  //       return (
+  //         commercial._id === userId && // Match ID
+  //         commercial.nom === lastName && // Match last name
+  //         commercial.prenom === firstName // Match first name
+  //       );
+  //     });
+  //     console.log("Filtered leads:", filteredLeads); // Debug filtered leads
+
+  //     setChatData(filteredLeads); // Update state with filtered leads
+  //     if (activeFilter === "prospect") {
+  //       setFilteredData(
+  //         response.data.chatData.filter((item) => item.type === "prospect")
+  //       );
+  //     } else if (activeFilter === "client") {
+  //       setFilteredData(
+  //         response.data.chatData.filter((item) => item.type === "client")
+  //       );
+  //     }  else if (activeFilter === "tous") {
+  //       setFilteredData(response.data.chatData);
+  //     } else {
+  //       setFilteredData([]);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching leads:", error);
+  //     message.error("Failed to fetch leads");
+  //   } finally {
+  //     setLoading(false); // End loading state
+  //   }
+  // };
+  // const fetchLeads = async () => {
+  //   const token = localStorage.getItem("token");
+  //   const decodedToken = jwtDecode(token); // Decode token to get user details
+  //   const userId = decodedToken?.userId; // Extract user ID
+  //   const userName = decodedToken?.name; // Extract full name
+  
+  //   try {
+  //     setLoading(true);
+  
+  //     // Fetch leads from backend
+  //     const response = await axios.get("/data", {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
+  
+  //     console.log("Response data:", response.data); // Debug response structure
+  
+  //     // Ensure `allLeads` is an array
+  //     const allLeads = response.data?.chatData || [];
+  //     console.log("All leads:", allLeads); // Debug all leads
+  
+  //     // Split user's full name into first and last names
+  //     const nameParts = userName?.trim().split(" ") || [];
+  //     const firstName = nameParts[1] || ""; // First name
+  //     const lastName = nameParts[0] || ""; // Last name
+  
+  //     // Filter leads based on the current commercial's info
+  //     const filteredLeads = allLeads.filter((lead) => {
+  //       const commercial = lead.commercial || {}; // Ensure commercial exists
+  //       return (
+  //         commercial._id === userId && // Match ID
+  //         commercial.nom === lastName && // Match last name
+  //         commercial.prenom === firstName // Match first name
+  //       );
+  //     });
+  //     console.log("Filtered leads:", filteredLeads); // Debug filtered leads
+  
+  //     setChatData(filteredLeads); // Update state with filtered leads
+      
+  //     // FIX: Use filteredLeads instead of response.data.chatData
+  //     if (activeFilter === "prospect") {
+  //       setFilteredData(
+  //         filteredLeads.filter((item) => item.type === "prospect")
+  //       );
+  //     } else if (activeFilter === "client") {
+  //       setFilteredData(
+  //         filteredLeads.filter((item) => item.type === "client")
+  //       );
+  //     } else if (activeFilter === "tous") {
+  //       setFilteredData(filteredLeads); // Use filteredLeads here
+  //     } else {
+  //       setFilteredData([]);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching leads:", error);
+  //     message.error("Failed to fetch leads");
+  //   } finally {
+  //     setLoading(false); // End loading state
+  //   }
+  // };
   const generateRandomNumber = (prefix) => {
     const randomNum = Math.floor(100000 + Math.random() * 900000);
     return `${prefix}${randomNum}`;
@@ -195,7 +357,7 @@ const ListLeads = () => {
 
   useEffect(() => {
     fetchCommercials();
-    fetchCoaches();
+    fetchLeads();
   }, []);
 
   const fetchCommercials = async () => {
@@ -398,6 +560,12 @@ const ListLeads = () => {
         </h2>
         <div className="flex flex-row md:flex-row gap-1 sm:gap-4">
           <Button
+                        type={activeFilter === "tous" ? "primary" : "default"}
+                        onClick={() => handleFilter("tous")}
+                      >
+                        Tous
+                      </Button>
+          <Button
             type={activeFilter === "prospect" ? "primary" : "default"}
             onClick={() => handleFilter("prospect")}
           >
@@ -447,14 +615,14 @@ const ListLeads = () => {
           </span>
         </div>
 
-        <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+        {/* <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
           <button
             onClick={() => setDevisModalVisible(true)}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
           >
             Créer un Devis
           </button>
-        </div>
+        </div> */}
       </div>
       <div className="bg-white rounded-lg shadow-md w-full md:p-6 overflow-x-auto">
         <Table
@@ -638,7 +806,7 @@ const ListLeads = () => {
                       title: selectedProduct.title,
                       reference: selectedProduct.reference,
                       description: selectedProduct.description,
-                      TVA: selectedProduct.tva || 10,
+                      TVA: selectedProduct.TVA || 10,
                     });
                   }
                 }}
