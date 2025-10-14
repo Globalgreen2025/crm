@@ -2469,20 +2469,40 @@ if (row.isForfait) {
   
       addFooter(2);
     }
-    const pdfBase64 = doc.output("datauristring");
+    // const pdfBase64 = doc.output("datauristring");
 
-    try {
-      await axios.post(`/command/send-devis-email/${commandId}`, {
-        email: command.email,
-        pdf: pdfBase64,
-        commandId: command._id,
-        commandNum: command.numCommand,
-        phone: command.phone,
-        clientName: command.nom,
-        societeName: command.nom_societé,
-        title: command.title,
-        description: command.description,
-      });
+    // try {
+    //   await axios.post(`/command/send-devis-email/${commandId}`, {
+    //     email: command.email,
+    //     pdf: pdfBase64,
+    //     commandId: command._id,
+    //     commandNum: command.numCommand,
+    //     phone: command.phone,
+    //     clientName: command.nom,
+    //     societeName: command.nom_societé,
+    //     title: command.title,
+    //     description: command.description,
+    //   });
+    const pdfBlob = doc.output('blob');
+
+// Créer FormData pour l'envoi
+const formData = new FormData();
+formData.append('email', command.email);
+formData.append('pdf', pdfBlob, `devis-${commandId}.pdf`);
+formData.append('commandId', command._id);
+formData.append('commandNum', command.numCommand);
+formData.append('phone', command.phone);
+formData.append('clientName', command.nom);
+formData.append('societeName', command.nom_societé || '');
+formData.append('title', command.title || '');
+formData.append('description', command.description || '');
+
+try {
+  await axios.post(`/command/send-devis-email/${commandId}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
 
       const response = await axios.put(`/command/send/${commandId}`);
 
