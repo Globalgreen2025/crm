@@ -420,7 +420,7 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
     const line3 = line2 + prixWidth;
   
     // Header parameters
-    const headerY = 112;
+    const headerY = 108;
     const headerHeight = 8;
     const textY = headerY + 5;
     const firstLineY = headerY + headerHeight;
@@ -459,9 +459,9 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
         const titleFontSize = 10;
         const refFontSize = 9;
         const descFontSize = 8;
-        const titleRefSpacing = 0.1;
-        const refDescSpacing = 0.07;
-        const descLineSpacing = -0.5;
+        const titleRefSpacing = -2;
+        const refDescSpacing = -2;
+        const descLineSpacing = -1;
   
         let totalHeight;
         let lineY = currentRowY;
@@ -536,12 +536,12 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
           if (nextItemIsMyForfait) {
             currentRowY += totalHeight;
           } else {
-            currentRowY += totalHeight + 4;
+            currentRowY += totalHeight + 6;
           }
         }
       });
   
-      const tableEndY = pageHeight - 20;
+      const tableEndY = pageHeight - 10;
       doc.line(margin, headerY, margin, tableEndY);
       doc.line(line1, headerY, line1, tableEndY);
       doc.line(line2, headerY, line2, tableEndY);
@@ -715,7 +715,7 @@ const usedTotalTTC = Number(totalAmount.toFixed(2));
           if (nextItemIsMyForfait) {
             page2CurrentRowY += totalHeight;
           } else {
-            page2CurrentRowY += totalHeight - 14;
+            page2CurrentRowY += totalHeight + 6;
           }
         }
       });
@@ -1264,9 +1264,9 @@ for (let group of itemGroups) {
     const titleFontSize = 10;
     const refFontSize = 9;
     const descFontSize = 8;
-    const titleRefSpacing = 0.7;
-    const refDescSpacing = 0.1;
-    const descLineSpacing = -0.5;
+    const titleRefSpacing = -2;
+    const refDescSpacing = -2;
+    const descLineSpacing = -1;
 
     let totalHeight;
     let lineY = currentRowY;
@@ -1382,13 +1382,13 @@ if (row.isForfait) {
   if (nextItemIsMyForfait) {
     currentRowY += totalHeight;
   } else {
-    currentRowY += totalHeight + 5;
+    currentRowY += totalHeight + 8;
   }
 }
   });
 
   // Draw table frame for page 1
-  const tableEndY = pageHeight - 20;
+  const tableEndY = pageHeight - 10;
   doc.line(margin, headerY, margin, tableEndY);
   doc.line(line1, headerY, line1, tableEndY);
   doc.line(line2, headerY, line2, tableEndY);
