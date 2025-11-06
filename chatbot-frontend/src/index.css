@@ -506,3 +506,26 @@ nav a {
 .ant-picker-calendar-full .ant-picker-panel .ant-picker-body thead {
   display: none;
 }
+
+/* Make table even more compact */
+.compact-table .ant-table-thead > tr > th {
+  padding: 8px 4px !important;
+  font-size: 11px !important;
+}
+
+.compact-table .ant-table-tbody > tr > td {
+  padding: 8px 4px !important;
+  font-size: 11px !important;
+}
+
+.compact-table .ant-btn {
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+  height: auto !important;
+}
+
+.compact-table .ant-tag {
+  font-size: 10px !important;
+  padding: 1px 4px !important;
+  line-height: 1.2 !important;
+}

@@ -113,7 +113,7 @@ const Command = ({ refreshTrigger }) => {
       render: (text) => `${text} €`,
     },
     {
-      title: "TVA (5.5%)",
+      title: "TVA",
       dataIndex: "totalTVA",
       key: "totalTVA",
       render: (text) => `${text} €`,
@@ -235,7 +235,7 @@ const Command = ({ refreshTrigger }) => {
             <Descriptions.Item label="Total HT">
               {selectedCommand.totalHT} €
             </Descriptions.Item>
-            <Descriptions.Item label="Total TVA (5.5%)">
+            <Descriptions.Item label="Total TVA">
               {selectedCommand.totalTVA} €
             </Descriptions.Item>
             <Descriptions.Item label="Total TTC">

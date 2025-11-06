@@ -132,6 +132,7 @@ const LeadDetailsPage = () => {
     try {
       // 1. Récupérer les commandes principales
       const commandsResponse = await axios.get(`/commands/lead/${id}`);
+      console.log("Commands Response:", commandsResponse.data);
       let commands = commandsResponse.data.data || commandsResponse.data || [];
       
       // 2. Pour chaque commande, récupérer le détail des factures

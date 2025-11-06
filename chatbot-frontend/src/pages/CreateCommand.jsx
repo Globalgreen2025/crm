@@ -23,7 +23,6 @@ const CreateCommand = () => {
   const { TextArea } = Input;
 
   const [leads, setLeads] = useState({});
-  const TVA = 5.5;
   const [panierItems, setPanierItems] = useState([]);
   const navigate = useNavigate();
 
@@ -35,11 +34,66 @@ const CreateCommand = () => {
     if (value === null || value === undefined || value === '') return '0.00';
     return parseFloat(value).toFixed(2);
   };
+  // useEffect(() => {
+  //   const fetchCartData = async () => {
+  //     const token = localStorage.getItem("token");
+  //     if (!token) return;
+
+  //     try {
+  //       const response = await axios.get(`/panier/${id}`, {
+  //         headers: {
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //       });
+  //       const allPanier = response.data;
+  //       console.log("allPanier", allPanier);
+
+  //       const decodedToken = token ? jwtDecode(token) : null;
+  //       const currentUserId = decodedToken?.userId;
+
+  //       const filteredpanier = allPanier.filter(
+  //         (panier) => panier.userId === currentUserId
+  //       );
+  //       console.log("filteredpanier", filteredpanier);
+  //       setPanierItems(filteredpanier);
+  //       if (filteredpanier.length > 0) {
+  //         const totals = filteredpanier.reduce(
+  //           (acc, item) => ({
+  //             quantite: acc.quantite + (item.quantite || 0),
+  //             totalHT: acc.totalHT + (item.montantHT || 0),
+  //             totalTVA: acc.totalTVA + (item.montantTVA || 0),
+  //             totalTTC: acc.totalTTC + (item.montantTTC || 0),
+  //             marge: acc.totalTTC + (item.marge || 0),
+  //             TVAappliquée: item.TVAappliquée,
+  //             unite: item.unite
+  //           }),
+  //           { quantite: 0, totalHT: 0, totalTVA: 0, totalTTC: 0, marge: 0 }
+  //         );
+
+  //         form.setFieldsValue({
+
+  //           quantite: totals.quantite,
+  //           totalHT: formatCurrency(totals.totalHT),
+  //           totalTVA: formatCurrency(totals.totalTVA),
+  //           totalTTC: formatCurrency(totals.totalTTC),
+  //           marge: totals.marge,
+  //           TVAappliquée: totals.TVAappliquée,
+            
+            
+  //         });
+  //       }
+  //     } catch (error) {
+  //       console.error("Error trouver items", error);
+  //       message.error("Error trouver items");
+  //     }
+  //   };
+  //   fetchCartData();
+  // }, []);
   useEffect(() => {
     const fetchCartData = async () => {
       const token = localStorage.getItem("token");
       if (!token) return;
-
+  
       try {
         const response = await axios.get(`/panier/${id}`, {
           headers: {
@@ -48,15 +102,16 @@ const CreateCommand = () => {
         });
         const allPanier = response.data;
         console.log("allPanier", allPanier);
-
+  
         const decodedToken = token ? jwtDecode(token) : null;
         const currentUserId = decodedToken?.userId;
-
+  
         const filteredpanier = allPanier.filter(
           (panier) => panier.userId === currentUserId
         );
         console.log("filteredpanier", filteredpanier);
         setPanierItems(filteredpanier);
+        
         if (filteredpanier.length > 0) {
           const totals = filteredpanier.reduce(
             (acc, item) => ({
@@ -65,22 +120,20 @@ const CreateCommand = () => {
               totalTVA: acc.totalTVA + (item.montantTVA || 0),
               totalTTC: acc.totalTTC + (item.montantTTC || 0),
               marge: acc.totalTTC + (item.marge || 0),
+              TVAappliquée: item.TVAappliquée,
+              unite: item.unite // This gets overwritten, only keeps last item's unite
             }),
             { quantite: 0, totalHT: 0, totalTVA: 0, totalTTC: 0, marge: 0 }
           );
-
+  
           form.setFieldsValue({
-            // quantite: totals.quantite,
-            // // Add other fields you want to populate:
-            // totalHT: totals.totalHT,
-            // totalTVA: totals.totalTVA,
-            // totalTTC: totals.totalTTC,
             quantite: totals.quantite,
             totalHT: formatCurrency(totals.totalHT),
             totalTVA: formatCurrency(totals.totalTVA),
             totalTTC: formatCurrency(totals.totalTTC),
             marge: totals.marge,
-            
+            TVAappliquée: totals.TVAappliquée,
+            unite: totals.unite // This will only show the last item's unite
           });
         }
       } catch (error) {
@@ -90,7 +143,6 @@ const CreateCommand = () => {
     };
     fetchCartData();
   }, []);
-
   const handleCommandTypeChange = (value) => {
     const prefix = value === "devis" ? "D" : "F";
     const randomNumber = generateRandomNumber(prefix);
@@ -107,6 +159,7 @@ const CreateCommand = () => {
         try {
           const response = await axios.get(`/commands/${commandId}`);
           const commandData = response.data;
+          console.log("dataaaaaa", commandData)
 
           form.setFieldsValue({
             command_type: commandData.command_type,
@@ -130,6 +183,13 @@ const CreateCommand = () => {
             numCommand: commandData.numCommand,
             naturePrestations: commandData.naturePrestations,
             note: commandData.note,
+            status: commandData.status,
+            items: commandData.items,
+            unite: commandData.unite,
+            prixAchatHT: commandData.prixAchatHT,
+            tauxMarge: commandData.tauxMarge,
+            TVAappliquée: commandData.TVAappliquée,
+
             // marge: commandData.marge,
           });
           const currentValues = form.getFieldsValue();
@@ -240,16 +300,20 @@ const CreateCommand = () => {
           montantHT: item.montantHT,
           montantTVA: item.montantTVA,
           montantTTC: item.montantTTC,
-          tva: item.tva,
           forfait: item.forfait,
           date: item.date,
+          unite: item.unite,
+          tauxMarge: item.tauxMarge,
+          TVAappliquée: item.TVAappliquée,
+          prixAchatHT: item.prixAchatHT,
         })),
       };
   
       console.log('FormData description:', formData.description); // Vérifiez le résultat
   
       if (!commandId) {
-        await axios.post("/command", formData);
+        const res = await axios.post("/command", formData);
+        console.log('Create responsessssssssss:', res.data);
         message.success("Commande ajoutée avec succès !");
       } else {
         const res = await axios.put(`/command/${commandId}`, formData, {
@@ -531,13 +595,18 @@ const CreateCommand = () => {
             </Form.Item>
           </Col>
         </Row>
-
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item label="TVA">
-              <Input value={`${TVA}%`} disabled />
+        <Col span={12}>
+            <Form.Item className="hidden" label="Entité" name="unite">
+              <Input  disabled />
             </Form.Item>
           </Col>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item className="hidden" label="TVA" name="TVAappliquée">
+              <Input placeholder="TVA" disabled />
+            </Form.Item>
+          </Col>
+        
           <Col span={12}>
             <Form.Item
               label="Siret"
