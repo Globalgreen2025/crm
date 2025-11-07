@@ -833,8 +833,8 @@ const addTvaRecapAndTotals = (startY) => {
             const offertY = lineY - 3;
             
             // Draw yellow background
-            doc.setFillColor(255, 255, 0); // Yellow background
-            doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
+            // doc.setFillColor(255, 255, 0); // Yellow background
+            // doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
             
             // Draw "Offert" text in red
             doc.setTextColor(255, 0, 0); // Red text
@@ -1577,8 +1577,8 @@ const addTvaRecapAndTotals = (startY) => {
             const offertY = lineY - 3;
             
             // Draw yellow background
-            doc.setFillColor(255, 255, 0); // Yellow background
-            doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
+            // doc.setFillColor(255, 255, 0); // Yellow background
+            // doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
             
             // Draw "Offert" text in red
             doc.setTextColor(255, 0, 0); // Red text

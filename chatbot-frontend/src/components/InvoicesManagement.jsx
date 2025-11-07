@@ -528,8 +528,8 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
             const offertX = descX + 5;
             const offertY = lineY - 3;
             
-            doc.setFillColor(255, 255, 0);
-            doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
+            // doc.setFillColor(255, 255, 0);
+            // doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
             
             doc.setTextColor(255, 0, 0);
             doc.text(offertText, offertX, offertY - 2);
@@ -749,8 +749,8 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
             const offertX = descX + 5;
             const offertY = lineY - 3;
             
-            doc.setFillColor(255, 255, 0);
-            doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
+            // doc.setFillColor(255, 255, 0);
+            // doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
             
             doc.setTextColor(255, 0, 0);
             doc.text(offertText, offertX, offertY - 2);
@@ -1439,8 +1439,8 @@ if (row.isForfait) {
     const offertY = lineY - 3;
     
     // Draw yellow background
-    doc.setFillColor(255, 255, 0); // Yellow background
-    doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
+    // doc.setFillColor(255, 255, 0); // Yellow background
+    // doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
     
     // Draw "Offert" text in red
     doc.setTextColor(255, 0, 0); // Red text
@@ -1681,8 +1681,8 @@ if (row.isForfait) {
     const offertY = lineY - 3;
     
     // Draw yellow background
-    doc.setFillColor(255, 255, 0); // Yellow background
-    doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
+    // doc.setFillColor(255, 255, 0); // Yellow background
+    // doc.rect(offertX - 2, offertY - 8, offertWidth + 4, 8, 'F');
     
     // Draw "Offert" text in red
     doc.setTextColor(255, 0, 0); // Red text
