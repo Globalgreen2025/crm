@@ -280,6 +280,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       return;
     }
   
+      
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
@@ -587,6 +588,150 @@ const Devis = ({ onValidate, shouldRefresh }) => {
     const line3 = line2 + prixWidth;
     const line4 = line3 + tvaWidth;
   
+
+const addTvaRecapAndTotals = (startY) => {
+  let recapY = startY + 5; // Fixed spacing below table
+
+  // Group items by TVA rate and calculate totals for each rate
+  const tvaGroups = {};
+  let totalHTProducts = 0;
+  let totalTVAProducts = 0;
+
+  if (command.items && command.items.length > 0) {
+    command.items.forEach((item) => {
+      const tvaRate = item.TVAappliquée;
+      const itemHT = item.montantHT || 0;
+      const itemTVA = item.montantTVA || 0;
+
+      if (!tvaGroups[tvaRate]) {
+        tvaGroups[tvaRate] = { baseHT: 0, montantTVA: 0 };
+      }
+
+      tvaGroups[tvaRate].baseHT += itemHT;
+      tvaGroups[tvaRate].montantTVA += itemTVA;
+      totalHTProducts += itemHT;
+      totalTVAProducts += itemTVA;
+    });
+  }
+
+  // Check if ALL TVA values are zero (not just some)
+  const allTVAZero = Object.values(tvaGroups).every(group => 
+    group.montantTVA === 0 && group.baseHT === 0
+  );
+
+  // Calculate the position for Récapitulatif (right side)
+  const recapStartX = pageWidth / 2 + 20; // Start from middle + some margin
+  let recapBoxY = recapY;
+
+  // Only show TVA detail if we have non-zero values
+  if (!allTVAZero) {
+    // Section title - Détail TVA (left side)
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text("Détail TVA", margin, recapY);
+
+    // Reset font
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    recapY += 8;
+
+    // Display TVA groups - filter out zero groups
+    const tvaRates = Object.keys(tvaGroups)
+      .filter(tvaRate => {
+        const group = tvaGroups[tvaRate];
+        return group.montantTVA > 0 || group.baseHT > 0;
+      })
+      .sort((a, b) => parseFloat(a) - parseFloat(b));
+
+    if (tvaRates.length === 1) {
+      const tvaRate = tvaRates[0];
+      const group = tvaGroups[tvaRate];
+
+      const col1X = margin;
+      const col2X = margin + 40;
+      const col3X = margin + 80;
+
+      doc.setFont(undefined, "bold");
+      doc.text("Taux:", col1X, recapY);
+      doc.setFont(undefined, "normal");
+      doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY + 6);
+
+      doc.setFont(undefined, "bold");
+      doc.text("Montant TVA:", col2X, recapY);
+      doc.setFont(undefined, "normal");
+      doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY + 6);
+
+      doc.setFont(undefined, "bold");
+      doc.text("Base HT:", col3X, recapY);
+      doc.setFont(undefined, "normal");
+      doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY + 6);
+
+      recapY += 20;
+    } else if (tvaRates.length > 1) {
+      const col1X = margin;
+      const col2X = margin + 40;
+      const col3X = margin + 80;
+
+      // Headers
+      doc.setFont(undefined, "bold");
+      doc.text("Taux", col1X, recapY);
+      doc.text("Montant TVA", col2X, recapY);
+      doc.text("Base HT", col3X, recapY);
+
+      recapY += 8;
+
+      // Data rows
+      tvaRates.forEach((tvaRate) => {
+        const group = tvaGroups[tvaRate];
+        doc.setFont(undefined, "normal");
+        doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY);
+        doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY);
+        doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY);
+        recapY += 6;
+      });
+      recapY += 8;
+    }
+  } else {
+    // Skip TVA detail section entirely but maintain consistent spacing
+    recapY = startY + 15;
+  }
+
+  // Récapitulatif section - RIGHT SIDE
+  // Background rectangle
+  const boxWidth = 80;
+  const boxHeight = 35;
+  doc.setFillColor(200);
+  doc.rect(recapStartX - 5, recapBoxY, boxWidth, boxHeight, "F");
+
+  // Title
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(12);
+  doc.text("Récapitulatif", recapStartX, recapBoxY + 5, { align: "left" });
+
+  // Totals
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(11);
+  let currentRecapY = recapBoxY + 16;
+  
+  doc.text("Total HT:", recapStartX, currentRecapY, { align: "left" });
+  doc.text(`${usedTotalHT.toFixed(2)} €`, pageWidth - margin - 6, currentRecapY, { align: "right" });
+
+  currentRecapY += 8;
+  doc.text("Total TVA:", recapStartX, currentRecapY, { align: "left" });
+  doc.text(`${usedTotalTVA.toFixed(2)} €`, pageWidth - margin - 6, currentRecapY, { align: "right" });
+
+  currentRecapY += 8;
+  doc.text("Total TTC:", recapStartX, currentRecapY, { align: "left" });
+  doc.text(`${usedTotalTTC.toFixed(2)} €`, pageWidth - margin - 6, currentRecapY, { align: "right" });
+
+  // Signature Section - centered at bottom
+  const signatureY = Math.max(recapY, currentRecapY) + 20;
+  doc.setFontSize(10);
+  doc.setFont(undefined, "normal");
+  doc.text("Date et signature précédée de la mention :", margin, signatureY);
+  doc.text('"Bon pour accord"', margin, signatureY + 6);
+};
+  
     const renderTablePage = (pageIndex, products) => {
       const isFirstPage = pageIndex === 0;
       
@@ -792,150 +937,11 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       addFooter(pageIndex + 1);
   
       // If this is the last page with products, add TVA recap and totals
-      if (pageIndex === productPages.length - 1) {
-        addTvaRecapAndTotals(currentRowY + 60);
+      // BUT ONLY if it's page 2 or higher
+      if (pageIndex === productPages.length - 1 && pageIndex >= 1) {
+        // Fixed positioning below table on page 2
+        addTvaRecapAndTotals(tableEndY + 10);
       }
-    };
-  
-    // Function to add TVA recap and totals (only on last page)
-    const addTvaRecapAndTotals = (startY) => {
-      let recapY = startY + 10;
-  
-      // Group items by TVA rate and calculate totals for each rate
-      const tvaGroups = {};
-      let totalHTProducts = 0;
-      let totalTVAProducts = 0;
-  
-      if (command.items && command.items.length > 0) {
-        command.items.forEach((item) => {
-          const tvaRate = item.TVAappliquée;
-          const itemHT = item.montantHT || 0;
-          const itemTVA = item.montantTVA || 0;
-  
-          if (!tvaGroups[tvaRate]) {
-            tvaGroups[tvaRate] = { baseHT: 0, montantTVA: 0 };
-          }
-  
-          tvaGroups[tvaRate].baseHT += itemHT;
-          tvaGroups[tvaRate].montantTVA += itemTVA;
-          totalHTProducts += itemHT;
-          totalTVAProducts += itemTVA;
-        });
-      }
-  
-      // Check if ALL TVA values are zero (not just some)
-      const allTVAZero = Object.values(tvaGroups).every(group => 
-        group.montantTVA === 0 && group.baseHT === 0
-      );
-  
-      // Only show TVA detail if we have non-zero values
-      if (!allTVAZero) {
-        // Section title
-        doc.setFontSize(12);
-        doc.setFont(undefined, "bold");
-        doc.text("Détail TVA", margin, recapY);
-  
-        // Reset font
-        doc.setFontSize(10);
-        doc.setFont(undefined, "normal");
-        recapY += 10;
-  
-        // Display TVA groups - filter out zero groups
-        const tvaRates = Object.keys(tvaGroups)
-          .filter(tvaRate => {
-            const group = tvaGroups[tvaRate];
-            return group.montantTVA > 0 || group.baseHT > 0;
-          })
-          .sort((a, b) => parseFloat(a) - parseFloat(b));
-  
-        if (tvaRates.length === 1) {
-          const tvaRate = tvaRates[0];
-          const group = tvaGroups[tvaRate];
-  
-          const col1X = margin;
-          const col2X = margin + 40;
-          const col3X = margin + 80;
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Taux:", col1X, recapY);
-          doc.setFont(undefined, "normal");
-          doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY + 6);
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Montant TVA:", col2X, recapY);
-          doc.setFont(undefined, "normal");
-          doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY + 6);
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Base HT:", col3X, recapY);
-          doc.setFont(undefined, "normal");
-          doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY + 6);
-  
-          recapY += 16;
-        } else if (tvaRates.length > 1) {
-          const col1X = margin;
-          const col2X = margin + 40;
-          const col3X = margin + 80;
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Taux", col1X, recapY);
-          doc.text("Montant TVA", col2X, recapY);
-          doc.text("Base HT", col3X, recapY);
-  
-          recapY += 8;
-  
-          tvaRates.forEach((tvaRate) => {
-            const group = tvaGroups[tvaRate];
-            doc.setFont(undefined, "normal");
-            doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY);
-            doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY);
-            doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY);
-            recapY += 6;
-          });
-          recapY += 12;
-        }
-      } else {
-        // Skip TVA detail section entirely
-        recapY = startY;
-      }
-  
-      // Récapitulatif box
-      const recapBoxX = pageWidth - 80;
-      let recapBoxY = recapY - 50;
-  
-      // Background rectangle
-      const boxWidth = 80;
-      const boxHeight = 35;
-      doc.setFillColor(200);
-      doc.rect(recapBoxX - 5, recapBoxY, boxWidth, boxHeight, "F");
-  
-      // Title
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(12);
-      doc.text("Récapitulatif", recapBoxX, recapBoxY + 5, { align: "left" });
-  
-      // Totals
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(11);
-      recapBoxY += 16;
-      doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${usedTotalHT.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
-  
-      recapBoxY += 8;
-      doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${usedTotalTVA.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
-  
-      recapBoxY += 8;
-      doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${usedTotalTTC.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
-  
-      // Signature Section
-      recapY = recapBoxY + 20;
-      doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
-      doc.text("Date et signature précédée de la mention :", margin, recapY);
-      recapY += 6;
-      doc.text('"Bon pour accord"', margin, recapY);
     };
   
     // Render all product pages
@@ -943,10 +949,10 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       renderTablePage(index, products);
     });
   
-    // ALWAYS CREATE SECOND PAGE WITH TABLE
+    // ALWAYS CREATE SECOND PAGE WITH TABLE AND TVA DETAILS IF NEEDED
     const currentPageCount = doc.internal.getNumberOfPages();
     
-    if (currentPageCount === 1 && productPages.length === 1) {
+    if (currentPageCount === 1) {
       // Add second page with empty table structure
       doc.addPage();
       
@@ -997,11 +1003,10 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
       doc.line(margin, tableEndY, pageWidth - margin, tableEndY);
   
-      // Add TVA recap on second page
-      addTvaRecapAndTotals(tableEndY + 20);
+      // Add TVA recap and signature on second page with fixed positioning
+      addTvaRecapAndTotals(tableEndY + 10);
       addFooter(2);
     }
-  
     // Save the PDF
     doc.save(`Devis_${command.originalNumCommand || command._id}.pdf`);
   };
@@ -1327,6 +1332,150 @@ const Devis = ({ onValidate, shouldRefresh }) => {
     const line3 = line2 + prixWidth;
     const line4 = line3 + tvaWidth;
   
+
+const addTvaRecapAndTotals = (startY) => {
+  let recapY = startY + 5; // Fixed spacing below table
+
+  // Group items by TVA rate and calculate totals for each rate
+  const tvaGroups = {};
+  let totalHTProducts = 0;
+  let totalTVAProducts = 0;
+
+  if (command.items && command.items.length > 0) {
+    command.items.forEach((item) => {
+      const tvaRate = item.TVAappliquée;
+      const itemHT = item.montantHT || 0;
+      const itemTVA = item.montantTVA || 0;
+
+      if (!tvaGroups[tvaRate]) {
+        tvaGroups[tvaRate] = { baseHT: 0, montantTVA: 0 };
+      }
+
+      tvaGroups[tvaRate].baseHT += itemHT;
+      tvaGroups[tvaRate].montantTVA += itemTVA;
+      totalHTProducts += itemHT;
+      totalTVAProducts += itemTVA;
+    });
+  }
+
+  // Check if ALL TVA values are zero (not just some)
+  const allTVAZero = Object.values(tvaGroups).every(group => 
+    group.montantTVA === 0 && group.baseHT === 0
+  );
+
+  // Calculate the position for Récapitulatif (right side)
+  const recapStartX = pageWidth / 2 + 20; // Start from middle + some margin
+  let recapBoxY = recapY;
+
+  // Only show TVA detail if we have non-zero values
+  if (!allTVAZero) {
+    // Section title - Détail TVA (left side)
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text("Détail TVA", margin, recapY);
+
+    // Reset font
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    recapY += 8;
+
+    // Display TVA groups - filter out zero groups
+    const tvaRates = Object.keys(tvaGroups)
+      .filter(tvaRate => {
+        const group = tvaGroups[tvaRate];
+        return group.montantTVA > 0 || group.baseHT > 0;
+      })
+      .sort((a, b) => parseFloat(a) - parseFloat(b));
+
+    if (tvaRates.length === 1) {
+      const tvaRate = tvaRates[0];
+      const group = tvaGroups[tvaRate];
+
+      const col1X = margin;
+      const col2X = margin + 40;
+      const col3X = margin + 80;
+
+      doc.setFont(undefined, "bold");
+      doc.text("Taux:", col1X, recapY);
+      doc.setFont(undefined, "normal");
+      doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY + 6);
+
+      doc.setFont(undefined, "bold");
+      doc.text("Montant TVA:", col2X, recapY);
+      doc.setFont(undefined, "normal");
+      doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY + 6);
+
+      doc.setFont(undefined, "bold");
+      doc.text("Base HT:", col3X, recapY);
+      doc.setFont(undefined, "normal");
+      doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY + 6);
+
+      recapY += 20;
+    } else if (tvaRates.length > 1) {
+      const col1X = margin;
+      const col2X = margin + 40;
+      const col3X = margin + 80;
+
+      // Headers
+      doc.setFont(undefined, "bold");
+      doc.text("Taux", col1X, recapY);
+      doc.text("Montant TVA", col2X, recapY);
+      doc.text("Base HT", col3X, recapY);
+
+      recapY += 8;
+
+      // Data rows
+      tvaRates.forEach((tvaRate) => {
+        const group = tvaGroups[tvaRate];
+        doc.setFont(undefined, "normal");
+        doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY);
+        doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY);
+        doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY);
+        recapY += 6;
+      });
+      recapY += 8;
+    }
+  } else {
+    // Skip TVA detail section entirely but maintain consistent spacing
+    recapY = startY + 15;
+  }
+
+  // Récapitulatif section - RIGHT SIDE
+  // Background rectangle
+  const boxWidth = 80;
+  const boxHeight = 35;
+  doc.setFillColor(200);
+  doc.rect(recapStartX - 5, recapBoxY, boxWidth, boxHeight, "F");
+
+  // Title
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(12);
+  doc.text("Récapitulatif", recapStartX, recapBoxY + 5, { align: "left" });
+
+  // Totals
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(11);
+  let currentRecapY = recapBoxY + 16;
+  
+  doc.text("Total HT:", recapStartX, currentRecapY, { align: "left" });
+  doc.text(`${usedTotalHT.toFixed(2)} €`, pageWidth - margin - 6, currentRecapY, { align: "right" });
+
+  currentRecapY += 8;
+  doc.text("Total TVA:", recapStartX, currentRecapY, { align: "left" });
+  doc.text(`${usedTotalTVA.toFixed(2)} €`, pageWidth - margin - 6, currentRecapY, { align: "right" });
+
+  currentRecapY += 8;
+  doc.text("Total TTC:", recapStartX, currentRecapY, { align: "left" });
+  doc.text(`${usedTotalTTC.toFixed(2)} €`, pageWidth - margin - 6, currentRecapY, { align: "right" });
+
+  // Signature Section - centered at bottom
+  const signatureY = Math.max(recapY, currentRecapY) + 20;
+  doc.setFontSize(10);
+  doc.setFont(undefined, "normal");
+  doc.text("Date et signature précédée de la mention :", margin, signatureY);
+  doc.text('"Bon pour accord"', margin, signatureY + 6);
+};
+  
     const renderTablePage = (pageIndex, products) => {
       const isFirstPage = pageIndex === 0;
       
@@ -1532,150 +1681,11 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       addFooter(pageIndex + 1);
   
       // If this is the last page with products, add TVA recap and totals
-      if (pageIndex === productPages.length - 1) {
-        addTvaRecapAndTotals(currentRowY + 60);
+      // BUT ONLY if it's page 2 or higher
+      if (pageIndex === productPages.length - 1 && pageIndex >= 1) {
+        // Fixed positioning below table on page 2
+        addTvaRecapAndTotals(tableEndY + 10);
       }
-    };
-  
-    // Function to add TVA recap and totals (only on last page)
-    const addTvaRecapAndTotals = (startY) => {
-      let recapY = startY + 10;
-  
-      // Group items by TVA rate and calculate totals for each rate
-      const tvaGroups = {};
-      let totalHTProducts = 0;
-      let totalTVAProducts = 0;
-  
-      if (command.items && command.items.length > 0) {
-        command.items.forEach((item) => {
-          const tvaRate = item.TVAappliquée;
-          const itemHT = item.montantHT || 0;
-          const itemTVA = item.montantTVA || 0;
-  
-          if (!tvaGroups[tvaRate]) {
-            tvaGroups[tvaRate] = { baseHT: 0, montantTVA: 0 };
-          }
-  
-          tvaGroups[tvaRate].baseHT += itemHT;
-          tvaGroups[tvaRate].montantTVA += itemTVA;
-          totalHTProducts += itemHT;
-          totalTVAProducts += itemTVA;
-        });
-      }
-  
-      // Check if ALL TVA values are zero (not just some)
-      const allTVAZero = Object.values(tvaGroups).every(group => 
-        group.montantTVA === 0 && group.baseHT === 0
-      );
-  
-      // Only show TVA detail if we have non-zero values
-      if (!allTVAZero) {
-        // Section title
-        doc.setFontSize(12);
-        doc.setFont(undefined, "bold");
-        doc.text("Détail TVA", margin, recapY);
-  
-        // Reset font
-        doc.setFontSize(10);
-        doc.setFont(undefined, "normal");
-        recapY += 10;
-  
-        // Display TVA groups - filter out zero groups
-        const tvaRates = Object.keys(tvaGroups)
-          .filter(tvaRate => {
-            const group = tvaGroups[tvaRate];
-            return group.montantTVA > 0 || group.baseHT > 0;
-          })
-          .sort((a, b) => parseFloat(a) - parseFloat(b));
-  
-        if (tvaRates.length === 1) {
-          const tvaRate = tvaRates[0];
-          const group = tvaGroups[tvaRate];
-  
-          const col1X = margin;
-          const col2X = margin + 40;
-          const col3X = margin + 80;
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Taux:", col1X, recapY);
-          doc.setFont(undefined, "normal");
-          doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY + 6);
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Montant TVA:", col2X, recapY);
-          doc.setFont(undefined, "normal");
-          doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY + 6);
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Base HT:", col3X, recapY);
-          doc.setFont(undefined, "normal");
-          doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY + 6);
-  
-          recapY += 16;
-        } else if (tvaRates.length > 1) {
-          const col1X = margin;
-          const col2X = margin + 40;
-          const col3X = margin + 80;
-  
-          doc.setFont(undefined, "bold");
-          doc.text("Taux", col1X, recapY);
-          doc.text("Montant TVA", col2X, recapY);
-          doc.text("Base HT", col3X, recapY);
-  
-          recapY += 8;
-  
-          tvaRates.forEach((tvaRate) => {
-            const group = tvaGroups[tvaRate];
-            doc.setFont(undefined, "normal");
-            doc.text(`${parseFloat(tvaRate).toFixed(1)}%`, col1X, recapY);
-            doc.text(`${group.montantTVA.toFixed(2)} €`, col2X, recapY);
-            doc.text(`${group.baseHT.toFixed(2)} €`, col3X, recapY);
-            recapY += 6;
-          });
-          recapY += 12;
-        }
-      } else {
-        // Skip TVA detail section entirely
-        recapY = startY;
-      }
-  
-      // Récapitulatif box
-      const recapBoxX = pageWidth - 80;
-      let recapBoxY = recapY - 50;
-  
-      // Background rectangle
-      const boxWidth = 80;
-      const boxHeight = 35;
-      doc.setFillColor(200);
-      doc.rect(recapBoxX - 5, recapBoxY, boxWidth, boxHeight, "F");
-  
-      // Title
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(12);
-      doc.text("Récapitulatif", recapBoxX, recapBoxY + 5, { align: "left" });
-  
-      // Totals
-      doc.setFont(undefined, "bold");
-      doc.setFontSize(11);
-      recapBoxY += 16;
-      doc.text("Total HT:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${usedTotalHT.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
-  
-      recapBoxY += 8;
-      doc.text("Total TVA:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${usedTotalTVA.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
-  
-      recapBoxY += 8;
-      doc.text("Total TTC:", recapBoxX, recapBoxY, { align: "left" });
-      doc.text(`${usedTotalTTC.toFixed(2)} €`, pageWidth - margin, recapBoxY, { align: "right" });
-  
-      // Signature Section
-      recapY = recapBoxY + 20;
-      doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
-      doc.text("Date et signature précédée de la mention :", margin, recapY);
-      recapY += 6;
-      doc.text('"Bon pour accord"', margin, recapY);
     };
   
     // Render all product pages
@@ -1683,10 +1693,10 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       renderTablePage(index, products);
     });
   
-    // ALWAYS CREATE SECOND PAGE WITH TABLE
+    // ALWAYS CREATE SECOND PAGE WITH TABLE AND TVA DETAILS IF NEEDED
     const currentPageCount = doc.internal.getNumberOfPages();
     
-    if (currentPageCount === 1 && productPages.length === 1) {
+    if (currentPageCount === 1) {
       // Add second page with empty table structure
       doc.addPage();
       
@@ -1737,8 +1747,8 @@ const Devis = ({ onValidate, shouldRefresh }) => {
       doc.line(pageWidth - margin, headerY, pageWidth - margin, tableEndY);
       doc.line(margin, tableEndY, pageWidth - margin, tableEndY);
   
-      // Add TVA recap on second page
-      addTvaRecapAndTotals(tableEndY + 20);
+      // Add TVA recap and signature on second page with fixed positioning
+      addTvaRecapAndTotals(tableEndY + 10);
       addFooter(2);
     }
 

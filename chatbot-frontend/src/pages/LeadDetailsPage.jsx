@@ -896,12 +896,12 @@ const factureColumns = [
               key: 'date',
               render: (date) => moment(date).format('DD/MM/YYYY'),
             },
-            {
-              title: 'Montant TTC',
-              dataIndex: 'totalTTC',
-              key: 'totalTTC',
-              render: (amount) => `${amount?.toFixed(2)} €` || '0.00 €',
-            },
+            // {
+            //   title: 'Montant TTC',
+            //   dataIndex: 'totalTTC',
+            //   key: 'totalTTC',
+            //   render: (amount) => `${amount?.toFixed(2)} €` || '0.00 €',
+            // },
             {
               title: 'Montant Payé Réel',
               key: 'actualPaidAmount',
@@ -910,16 +910,16 @@ const factureColumns = [
                 return `${paid.toFixed(2)} €`;
               },
             },
-            {
-              title: 'Reste à Payer',
-              key: 'remainingAmount',
-              render: (_, record) => {
-                const total = record.totalTTC.toFixed(2) || 0;
-                const paid = record.actualPaidAmount.toFixed(2) || record.paidAmount.toFixed(2) || 0;
-                const remaining = total - paid;
-                return `${remaining.toFixed(2)} €`;
-              },
-            },
+            // {
+            //   title: 'Reste à Payer',
+            //   key: 'remainingAmount',
+            //   render: (_, record) => {
+            //     const total = record.totalTTC.toFixed(2) || 0;
+            //     const paid = record.actualPaidAmount.toFixed(2) || record.paidAmount.toFixed(2) || 0;
+            //     const remaining = total - paid;
+            //     return `${remaining.toFixed(2)} €`;
+            //   },
+            // },
             {
               title: 'Statut Paiement',
               key: 'paymentStatus',
@@ -1070,7 +1070,7 @@ const factureColumns = [
         />
 
         {/* Résumé financier mis à jour */}
-        <Card title="Résumé Financier" className="mt-4">
+        {/* <Card title="Résumé Financier" className="mt-4">
           <Row gutter={16}>
             <Col span={8}>
               <Statistic
@@ -1103,7 +1103,7 @@ const factureColumns = [
               />
             </Col>
           </Row>
-        </Card>
+        </Card> */}
       </>
     )}
   </div>

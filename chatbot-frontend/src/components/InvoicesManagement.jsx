@@ -824,7 +824,7 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
     }
   
     // Draw table frame for page 2
-    const page2TableEndY = pageHeight - 100;
+    const page2TableEndY = pageHeight - 80;
     
     doc.line(margin, page2HeaderY, margin, page2TableEndY);
     doc.line(line1, page2HeaderY, line1, page2TableEndY);
@@ -835,7 +835,7 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
     doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
   
     // === TVA RECAP SECTION ===
-    let recapY = page2TableEndY + 30;
+    let recapY = page2TableEndY + 20;
   
     // Section title
     doc.setFontSize(12);
@@ -910,7 +910,7 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
   
     // Récapitulatif box
     const recapBoxX = pageWidth - 80;
-    let recapBoxY = page2TableEndY + 30;
+    let recapBoxY = page2TableEndY + 20;
   
     // Background rectangle
     const boxWidth = 80;
@@ -1770,7 +1770,7 @@ if (row.isForfait) {
   }
 
   // Draw table frame for page 2
-  const page2TableEndY = pageHeight - 100;
+  const page2TableEndY = pageHeight - 80;
   
   doc.line(margin, page2HeaderY, margin, page2TableEndY);
   doc.line(line1, page2HeaderY, line1, page2TableEndY);
@@ -1781,7 +1781,7 @@ if (row.isForfait) {
   doc.line(margin, page2TableEndY, pageWidth - margin, page2TableEndY);
 
 // === TVA Recap Section ===
-let recapY = page2TableEndY + 30;
+let recapY = page2TableEndY + 10;
 
 // Section title
 doc.setFontSize(12);
