@@ -596,7 +596,7 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
           if (nextItemIsMyForfait) {
             currentRowY += totalHeight;
           } else {
-            currentRowY += totalHeight + 6;
+            currentRowY += totalHeight + 12;
           }
         }
       });
@@ -817,7 +817,7 @@ const InvoicesManagement = ({ command, onUpdateCommand }) => {
           if (nextItemIsMyForfait) {
             page2CurrentRowY += totalHeight;
           } else {
-            page2CurrentRowY += totalHeight + 6;
+            page2CurrentRowY += totalHeight + 12;
           }
         }
       });
