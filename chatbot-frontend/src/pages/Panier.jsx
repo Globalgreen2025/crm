@@ -314,7 +314,12 @@ const Panier = ({ setCartQuantity, refreshTrigger }) => {
         <span>{record.unite}</span>
       ),
     },
-
+    {
+      title: "Prix Unitaire TTC",
+      dataIndex: "total",
+      key: "total",
+      render: (value) => `${parseFloat(value || 0).toFixed(2)} €`,
+    },
     {
       title: "Forfait",
       dataIndex: "forfait",

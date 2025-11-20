@@ -977,7 +977,8 @@ const AllDevis = () => {
             quantity: 1,
             unite: "",
             unitPrice: forfaitAmount,
-            tvaRate: 5.5,
+            // tvaRate: 5.5,
+            tvaRate: item.TVAappliquée,
             total: forfaitAmount,
             isForfait: true,
             groupId: item._id || Math.random(),
@@ -1440,7 +1441,7 @@ const AllDevis = () => {
             { align: "center" }
           );
           doc.text(
-            `${row.total.toFixed(2)} €`,
+            `${row.unitPrice.toFixed(2)} €`,
             prixX + prixWidth / 2,
             currentRowY,
             { align: "center" }
@@ -1799,7 +1800,8 @@ const AllDevis = () => {
         const itemTVA = item.montantTVA || 0;
         const itemTTC = item.montantTTC || 0;
         const quantity = item.quantite || 1;
-        const unitPrice = item.prixUnitaire || itemHT / quantity;
+        // const unitPrice = item.prixUnitaire || itemHT / quantity;
+        const unitPrice = item.prixUnitaire;
 
         // Check if this is an offer product (has "Offert" in title or all prices are 0)
         const isOffer =
@@ -1836,7 +1838,8 @@ const AllDevis = () => {
             quantity: 1,
             unite: "",
             unitPrice: forfaitAmount,
-            tvaRate: 5.5,
+            // tvaRate: 5.5,
+            tvaRate: item.TVAappliquée,
             total: forfaitAmount,
             isForfait: true,
             groupId: item._id || Math.random(),
@@ -2299,7 +2302,7 @@ const AllDevis = () => {
             { align: "center" }
           );
           doc.text(
-            `${row.total.toFixed(2)} €`,
+            `${row.unitPrice.toFixed(2)} €`,
             prixX + prixWidth / 2,
             currentRowY,
             { align: "center" }

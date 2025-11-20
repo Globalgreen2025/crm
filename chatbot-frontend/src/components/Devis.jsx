@@ -498,7 +498,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
             quantity: 1,
             unite: "",
             unitPrice: forfaitAmount,
-            tvaRate: 5.5,
+            tvaRate: item.TVAappliquée,
             total: forfaitAmount,
             isForfait: true,
             groupId: item._id || Math.random(),
@@ -889,7 +889,7 @@ const addTvaRecapAndTotals = (startY) => {
           doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY - 4, { align: "center" });
         } else {
           doc.text(`${row.quantity} ${row.unite}`, qteX + qteWidth / 2, currentRowY, { align: "center" });
-          doc.text(`${row.total.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
+          doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
           doc.text(`${row.tvaRate}%`, tvaX + tvaWidth / 2, currentRowY, { align: "center" });
           doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY, { align: "center" });
         }
@@ -1242,7 +1242,7 @@ const addTvaRecapAndTotals = (startY) => {
             quantity: 1,
             unite: "",
             unitPrice: forfaitAmount,
-            tvaRate: 5.5,
+            tvaRate: item.TVAappliquée,
             total: forfaitAmount,
             isForfait: true,
             groupId: item._id || Math.random(),
@@ -1633,7 +1633,7 @@ const addTvaRecapAndTotals = (startY) => {
           doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY - 4, { align: "center" });
         } else {
           doc.text(`${row.quantity} ${row.unite}`, qteX + qteWidth / 2, currentRowY, { align: "center" });
-          doc.text(`${row.total.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
+          doc.text(`${row.unitPrice.toFixed(2)} €`, prixX + prixWidth / 2, currentRowY, { align: "center" });
           doc.text(`${row.tvaRate}%`, tvaX + tvaWidth / 2, currentRowY, { align: "center" });
           doc.text(`${row.total.toFixed(2)} €`, ttcX + ttcWidth / 2, currentRowY, { align: "center" });
         }
