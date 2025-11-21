@@ -385,7 +385,7 @@ const Devis = ({ onValidate, shouldRefresh }) => {
           doc.internal.scaleFactor
       )
     );
-    const rightStartXd = pageWidth - margin - maxRightWidth;
+    const rightStartXd = pageWidth - margin - maxRightWidth - 8;
   
     let currentRightYy = 50;
     doc.setFont(undefined, "bold");
@@ -1129,7 +1129,7 @@ const addTvaRecapAndTotals = (startY) => {
           doc.internal.scaleFactor
       )
     );
-    const rightStartXd = pageWidth - margin - maxRightWidth;
+    const rightStartXd = pageWidth - margin - maxRightWidth - 8;
   
     let currentRightYy = 50;
     doc.setFont(undefined, "bold");
